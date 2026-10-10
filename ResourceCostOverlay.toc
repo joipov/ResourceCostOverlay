@@ -1,0 +1,18 @@
+## Interface: 16001
+## Title: |cffc4b5fdJoipov|r Resource Cost on Icons
+## Notes: Shows simple resource costs (rage, energy, mana) on Cooldown Manager spell bars, buff bars, and optionally action bars.
+## Author: ResourceCostOverlay
+## Version: 1.0.0
+## SavedVariables: ResourceCostOverlayDB
+## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
+## IconTexture: Interface\Icons\Ability_Warrior_Disarm
+## AddonCompartmentFunc: ResourceCostOverlay_OnAddonCompartmentClick
+## AllowLoadGameType: camelot
+## Group: JoipovAddons
+## Dependencies: JoipovAddons
+
+Database.lua
+Core.lua
+Targets.lua
+MinimapButton.lua
+Options.lua
