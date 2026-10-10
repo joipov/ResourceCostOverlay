@@ -1,0 +1,12 @@
+---
+description: Keep CurseForge and Wago release media in assets/
+alwaysApply: true
+---
+
+# Release media
+
+`assets/` is permanent release media for CurseForge and Wago (screenshots, and `logo.png` when a store logo exists).
+
+- Do not delete, move, empty, or gitignore `assets/` when cleaning unused files, running a code audit, or trimming the repo.
+- Do not add `assets/` to the TOC. The game does not load it.
+- Do not put `assets/` in the addon zip. `.pkgmeta` and `package.ps1` already exclude it.

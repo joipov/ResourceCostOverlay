@@ -1,0 +1,33 @@
+# Builds the addon zip with BigWigsMods/packager whenever an annotated tag
+# is pushed, attaches it to a GitHub release and (when the secrets exist)
+# uploads it to CurseForge / Wago / WoWInterface.
+#
+# The game version is taken from the TOC: release.sh maps
+# `## Interface: 16xxx` to the "forever" game type, so no `-g` argument is
+# needed. Upload targets are read from `## X-Curse-Project-ID` /
+# `## X-Wago-ID` / `## X-WoWI-ID` lines in the TOC; add the ones you use.
+name: Package and release
+
+on:
+  push:
+    tags:
+      - '**'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package and release
+        uses: BigWigsMods/packager@v2

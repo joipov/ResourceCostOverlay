@@ -56,6 +56,37 @@ local function GetEcmeModule()
 	return EllesmereUI._ModuleNS["EllesmereUICooldownManager"]
 end
 
+local reanchorHooked = false
+
+--- Ellesmere shows a missing-buff placeholder on a bar that is already visible,
+--- so the bar's OnShow never fires. Refresh after the reanchor paint, and the
+--- next time that same placeholder is shown.
+local function HookEllesmereReanchor()
+	if reanchorHooked then
+		return
+	end
+	local mod = GetEcmeModule()
+	if not mod or type(mod.CollectAndReanchor) ~= "function" then
+		return
+	end
+	reanchorHooked = true
+	hooksecurefunc(mod, "CollectAndReanchor", function()
+		ns.RequestRefresh(false)
+	end)
+end
+
+local function HookPlaceholderShow(icon)
+	if not icon._isPlaceholderFrame or hookedViewers[icon] then
+		return
+	end
+	hookedViewers[icon] = true
+	if icon.HookScript then
+		icon:HookScript("OnShow", function()
+			ns.RequestRefresh(false)
+		end)
+	end
+end
+
 local function HookViewerOnShow(viewer)
 	if not IsFrame(viewer) or hookedViewers[viewer] then
 		return
@@ -189,6 +220,7 @@ local function CollectEllesmereIcons(out, seen, wantBuff)
 				for i = 1, #icons do
 					local icon = icons[i]
 					if IsWidgetFrame(icon) then
+						HookPlaceholderShow(icon)
 						AddTarget(out, seen, icon, "cdm", ns.ResolveCdmSpellID(icon))
 					end
 				end
@@ -347,6 +379,7 @@ local function TryHookAllViewers()
 			HookViewerOnShow(viewer)
 		end
 	end
+	HookEllesmereReanchor()
 	local mod = GetEcmeModule()
 	if mod and type(mod.cdmBarFrames) == "table" then
 		for _, frame in pairs(mod.cdmBarFrames) do

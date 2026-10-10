@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/lua-language-server/master/locale/en-us/setting.lua",
+  "runtime.version": "Lua 5.1",
+  "runtime.builtin": {
+    "basic": "disable",
+    "debug": "disable",
+    "io": "disable",
+    "math": "disable",
+    "os": "disable",
+    "package": "disable",
+    "string": "disable",
+    "table": "disable",
+    "utf8": "disable"
+  },
+  "workspace.library": [
+    ".annotations",
+    "C:/Users/rubin/.cursor/extensions/ketho.wow-api/Annotations/Core"
+  ],
+  "workspace.ignoreDir": [
+    ".release",
+    "assets"
+  ],
+  "workspace.checkThirdParty": false,
+  "diagnostics.globals": [
+    "SLASH_RCO1",
+    "SLASH_RCO2",
+    "ResourceCostOverlay_OnAddonCompartmentClick",
+    "ResourceCostOverlayDB",
+    "C_CooldownViewer",
+    "GetActionInfo",
+    "GetActionText",
+    "GetMacroSpell",
+    "GetMouseFocus",
+    "GetMouseFoci",
+    "GetSpellPowerCost",
+    "IsPlayerSpell",
+    "IsSpellKnown",
+    "MinimalSliderWithSteppersMixin",
+    "STANDARD_TEXT_FONT"
+  ],
+  "diagnostics.severity": {
+    "undefined-global": "Error",
+    "unused-local": "Error",
+    "unused-function": "Error",
+    "param-type-mismatch": "Error",
+    "missing-return": "Error",
+    "need-check-nil": "Error",
+    "redundant-parameter": "Error",
+    "cast-type-mismatch": "Error"
+  }
+}

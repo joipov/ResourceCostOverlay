@@ -41,14 +41,10 @@ local refreshAt = 0
 local layoutDirty = true
 
 local function Print(msg)
-	JoipovAddons_Print("Resource Cost on Icons", msg)
+	print("|cffc4b5fdJoipov|r Resource Cost on Icons: " .. tostring(msg or ""))
 end
 
 ns.Print = Print
-
-if JoipovAddons_RegisterHint then
-	JoipovAddons_RegisterHint("Resource Cost on Icons", "/rco")
-end
 
 local function DB()
 	return ns.db
@@ -387,6 +383,24 @@ local function DirectSpellCost(spellID)
 	return nil
 end
 
+--- Spellbook cast of the same name, when `spellID` itself has no flat cost
+--- (buff-slot aura ids are often "known" and still have no mana cost).
+local function SpellbookCastID(spellID)
+	EnsureKnownRanks()
+	if not (C_Spell and C_Spell.GetSpellName) then
+		return nil
+	end
+	local name = C_Spell.GetSpellName(spellID)
+	if type(name) ~= "string" or name == "" or SecretBlocked(name) then
+		return nil
+	end
+	local known = ReadableNumber(knownByName[name])
+	if not known or known <= 0 or known == spellID or not SameRankFamily(spellID, known) then
+		return nil
+	end
+	return known
+end
+
 --- Flat cost of the player's current rank. A lower rank's cost is not used
 --- once a higher trained rank of the same spell is known.
 function ns.GetSpellResourceCost(spellID)
@@ -399,7 +413,15 @@ function ns.GetSpellResourceCost(spellID)
 	if current then
 		return DirectSpellCost(current)
 	end
-	return DirectSpellCost(spellID)
+	local amount, powerType = DirectSpellCost(spellID)
+	if amount then
+		return amount, powerType
+	end
+	local book = SpellbookCastID(spellID)
+	if book then
+		return DirectSpellCost(book)
+	end
+	return nil
 end
 
 --- Full cost display only.
@@ -461,7 +483,7 @@ function ns.EnsureOverlay(button)
 	if fs then
 		local holder = fs:GetParent()
 		if holder and holder ~= button and holder.SetFrameLevel and button.GetFrameLevel then
-			holder:SetFrameLevel((button:GetFrameLevel() or 0) + 25)
+			holder:SetFrameLevel((button:GetFrameLevel() or 0) + 30)
 		end
 		return fs
 	end
@@ -472,7 +494,7 @@ function ns.EnsureOverlay(button)
 	if holder.EnableMouseMotion then
 		holder:EnableMouseMotion(false)
 	end
-	holder:SetFrameLevel((button:GetFrameLevel() or 0) + 25)
+	holder:SetFrameLevel((button:GetFrameLevel() or 0) + 30)
 
 	fs = holder:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
 	fs:SetJustifyH("CENTER")
@@ -589,6 +611,17 @@ function ns.ResolveCdmSpellID(child)
 		fc = eui._ecmeFC[child]
 	end
 
+	-- Missing-buff placeholders are Ellesmere's own frames. Their live spell
+	-- getters and cooldown links are secret or shared while any other aura is
+	-- up. The icon's spell is the plain id Ellesmere stored on the frame.
+	if child._isPlaceholderFrame then
+		AddSpellCandidate(list, seen, child._phSpellID)
+		if CanIndex(fc) then
+			AddSpellCandidate(list, seen, fc.spellID)
+		end
+		return ns.PickCostSpellID(list)
+	end
+
 	if eui and type(eui.GetCanonicalSpellIDForFrame) == "function" then
 		local ok, sid = pcall(eui.GetCanonicalSpellIDForFrame, child)
 		if ok then
@@ -656,7 +689,7 @@ function ns.ResolveActionSpellID(button)
 		return nil
 	end
 
-	local actionType, id, subType = GetActionInfo(action)
+	local actionType, id = GetActionInfo(action)
 	actionType = ReadableString(actionType)
 	id = ReadableNumber(id)
 	if not actionType or not id then
@@ -805,6 +838,7 @@ local function OnEvent(_, event, arg1)
 	end
 
 	if event == "PLAYER_LOGIN" then
+		Print("Type |cffffffff/rco|r to open settings.")
 		ns.InvalidateKnownRanks()
 		if ns.InitOptions then
 			ns.InitOptions()
@@ -834,6 +868,22 @@ local function OnEvent(_, event, arg1)
 		return
 	end
 
+	if event == "UNIT_AURA" then
+		if arg1 ~= "player" then
+			return
+		end
+		-- Ellesmere repaints missing-buff placeholders shortly after the aura
+		-- event. Wait so _phSpellID is set before we draw.
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0.3, function()
+				ns.RequestRefresh(false)
+			end)
+		else
+			ns.RequestRefresh(false)
+		end
+		return
+	end
+
 	if event == "UNIT_MAXPOWER" and arg1 ~= "player" then
 		return
 	end
@@ -856,12 +906,14 @@ driver:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
 driver:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 driver:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 driver:RegisterEvent("UNIT_MAXPOWER")
-if pcall(driver.RegisterEvent, driver, "ACTIONBAR_UPDATE_STATE_CHANGED") then
+if driver.RegisterUnitEvent then
+	driver:RegisterUnitEvent("UNIT_AURA", "player")
+else
+	driver:RegisterEvent("UNIT_AURA")
 end
-if pcall(driver.RegisterEvent, driver, "PLAYER_SPECIALIZATION_CHANGED") then
-end
-if pcall(driver.RegisterEvent, driver, "TRAIT_CONFIG_UPDATED") then
-end
+pcall(driver.RegisterEvent, driver, "ACTIONBAR_UPDATE_STATE_CHANGED")
+pcall(driver.RegisterEvent, driver, "PLAYER_SPECIALIZATION_CHANGED")
+pcall(driver.RegisterEvent, driver, "TRAIT_CONFIG_UPDATED")
 
 driver:SetScript("OnEvent", OnEvent)
 driver:SetScript("OnUpdate", OnUpdate)
