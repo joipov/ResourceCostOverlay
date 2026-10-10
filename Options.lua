@@ -1,13 +1,15 @@
 local _, ns = ...
 
 local Settings = Settings
+local CreateSettingsListSectionHeaderInitializer = CreateSettingsListSectionHeaderInitializer
+local CreateSettingsButtonInitializer = CreateSettingsButtonInitializer
 
 function ns.OpenSettings()
 	if not ns.settingsCategory then
 		ns.InitOptions()
 	end
 	if not ns.settingsCategory then
-		ns.Print("Settings UI unavailable.")
+		ns.Print("Couldn't open settings.")
 		return
 	end
 	Settings.OpenToCategory(ns.settingsCategory:GetID())
@@ -50,8 +52,8 @@ local function AddCheckbox(category, varName, key, label, defaultValue, tooltip,
 		defaultValue
 	)
 	setting:SetValueChangedCallback(onChanged or OnChanged)
-	Settings.CreateCheckbox(category, setting, tooltip)
-	return setting
+	local checkbox = Settings.CreateCheckbox(category, setting, tooltip)
+	return checkbox, setting
 end
 
 local function AddSlider(category, varName, key, label, defaultValue, minV, maxV, step, formatFn, tooltip)
@@ -86,8 +88,8 @@ local function AddSlider(category, varName, key, label, defaultValue, minV, maxV
 	if MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label and formatFn then
 		opts:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, formatFn)
 	end
-	Settings.CreateSlider(category, setting, opts, tooltip)
-	return setting
+	local slider = Settings.CreateSlider(category, setting, opts, tooltip)
+	return slider, setting
 end
 
 local function AddDropdown(category, varName, key, label, defaultValue, getOptions, tooltip)
@@ -106,8 +108,87 @@ local function AddDropdown(category, varName, key, label, defaultValue, getOptio
 		defaultValue
 	)
 	setting:SetValueChangedCallback(OnChanged)
-	createDropdown(category, setting, getOptions, tooltip)
-	return setting
+	local dropdown = createDropdown(category, setting, getOptions, tooltip)
+	return dropdown, setting
+end
+
+local function Clamp01(value, fallback)
+	value = tonumber(value)
+	if not value then
+		return fallback
+	end
+	if value < 0 then
+		return 0
+	end
+	if value > 1 then
+		return 1
+	end
+	return value
+end
+
+local function SetTextColor(r, g, b)
+	local db = ns.db
+	if not db then
+		return
+	end
+	local defaults = ns.defaults or {}
+	db.colorR = Clamp01(r, defaults.colorR or 1)
+	db.colorG = Clamp01(g, defaults.colorG or 1)
+	db.colorB = Clamp01(b, defaults.colorB or 1)
+	OnChanged()
+end
+
+local function OpenColorPicker()
+	local db = ns.db
+	if not db or not ColorPickerFrame or not ColorPickerFrame.SetupColorPickerAndShow then
+		return
+	end
+	local prevR, prevG, prevB = db.colorR, db.colorG, db.colorB
+	ColorPickerFrame:SetupColorPickerAndShow({
+		r = prevR,
+		g = prevG,
+		b = prevB,
+		hasOpacity = false,
+		swatchFunc = function()
+			local r, g, b = ColorPickerFrame:GetColorRGB()
+			SetTextColor(r, g, b)
+		end,
+		cancelFunc = function()
+			SetTextColor(prevR, prevG, prevB)
+		end,
+	})
+end
+
+local function AddHeader(category, text)
+	if not (SettingsPanel and SettingsPanel.GetLayout and CreateSettingsListSectionHeaderInitializer) then
+		return
+	end
+	local layout = SettingsPanel:GetLayout(category)
+	if not (layout and layout.AddInitializer) then
+		return
+	end
+	layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text))
+end
+
+local function AddColorButton(category, tooltip)
+	if not (SettingsPanel and SettingsPanel.GetLayout and CreateSettingsButtonInitializer) then
+		return
+	end
+	local layout = SettingsPanel:GetLayout(category)
+	if not (layout and layout.AddInitializer) then
+		return
+	end
+	local initializer = CreateSettingsButtonInitializer(
+		"Text color",
+		"Choose color",
+		function()
+			OpenColorPicker()
+		end,
+		tooltip,
+		true
+	)
+	layout:AddInitializer(initializer)
+	return initializer
 end
 
 function ns.InitOptions()
@@ -115,25 +196,27 @@ function ns.InitOptions()
 		return
 	end
 
-	local ok, err = pcall(function()
+	local ok = pcall(function()
 		local category = Settings.RegisterVerticalLayoutCategory("Resource Cost on Icons")
 		ns.settingsCategory = category
 		local defaults = ns.defaults or {}
 
-		AddCheckbox(
+		local percentTip = "Percent of your maximum. Off shows the cost itself."
+
+		local enableCheckbox, enableSetting = AddCheckbox(
 			category,
 			"ENABLED",
 			"enabled",
-			"Enable overlay",
+			"Enable Resource Cost on Icons",
 			defaults.enabled ~= false,
-			"Show resource cost numbers on tracked buttons."
+			"Shows resource costs on ability icons."
 		)
 
-		AddCheckbox(
+		local minimapCheckbox = AddCheckbox(
 			category,
 			"SHOW_MINIMAP",
 			"showMinimapButton",
-			"Minimap Button",
+			"Minimap button",
 			defaults.showMinimapButton ~= false,
 			"Button on the minimap. Opens settings. Ellesmere puts it with the other addon buttons.",
 			function()
@@ -144,88 +227,94 @@ function ns.InitOptions()
 			end
 		)
 
-		AddCheckbox(
+		AddHeader(category, "Icons")
+
+		local actionBars = AddCheckbox(
 			category,
 			"SHOW_BARS",
 			"showActionBars",
-			"Show on action bars",
+			"Action bars",
 			defaults.showActionBars == true,
-			"Overlay costs on Blizzard / Ellesmere action-bar buttons."
+			"On Blizzard and Ellesmere action buttons."
 		)
 
-		AddCheckbox(
+		local cooldownSpells = AddCheckbox(
 			category,
 			"SHOW_CDM_SPELLS",
 			"showCdmSpellBars",
-			"Show on CDM spell bars",
+			"Cooldown spells",
 			defaults.showCdmSpellBars ~= false,
-			"Overlay costs on Essential and Utility Cooldown Manager icons."
+			"On Essential and Utility Cooldown Manager icons."
 		)
 
-		AddCheckbox(
+		local cooldownBuffs = AddCheckbox(
 			category,
 			"SHOW_CDM_BUFFS",
 			"showCdmBuffBars",
-			"Show on CDM buff bars",
+			"Cooldown buffs",
 			defaults.showCdmBuffBars ~= false,
-			"Overlay costs on Cooldown Manager buff icons and tracked buff bars."
+			"On Cooldown Manager buff icons and tracked buff bars."
 		)
 
-		AddCheckbox(
+		AddHeader(category, "Numbers")
+
+		local percentMana = AddCheckbox(
 			category,
 			"PERCENT_MANA",
 			"percentMana",
 			"Mana as % of max",
 			defaults.percentMana ~= false,
-			"Show mana costs as a percent of your maximum mana. Off shows the raw cost. Falls back to the raw cost if max mana cannot be read."
+			percentTip
 		)
 
-		AddCheckbox(
+		local percentRage = AddCheckbox(
 			category,
 			"PERCENT_RAGE",
 			"percentRage",
 			"Rage as % of max",
 			defaults.percentRage == true,
-			"Show rage costs as a percent of your maximum rage. Off shows the raw cost. Falls back to the raw cost if max rage cannot be read."
+			percentTip
 		)
 
-		AddCheckbox(
+		local percentEnergy = AddCheckbox(
 			category,
 			"PERCENT_ENERGY",
 			"percentEnergy",
 			"Energy as % of max",
 			defaults.percentEnergy == true,
-			"Show energy costs as a percent of your maximum energy. Off shows the raw cost. Falls back to the raw cost if max energy cannot be read."
+			percentTip
 		)
 
-		AddCheckbox(
+		local percentFocus = AddCheckbox(
 			category,
 			"PERCENT_FOCUS",
 			"percentFocus",
 			"Focus as % of max",
 			defaults.percentFocus == true,
-			"Show focus costs as a percent of your maximum focus. Off shows the raw cost. Falls back to the raw cost if max focus cannot be read."
+			percentTip
 		)
 
-		AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()
+		AddHeader(category, "Placement")
+
+		local numberPosition = AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()
 			local container = Settings.CreateControlTextContainer()
 			container:Add("CENTER", "Center")
 			container:Add("TOP", "Top")
 			container:Add("BOTTOM", "Bottom")
 			container:Add("LEFT", "Left")
 			container:Add("RIGHT", "Right")
-			container:Add("TOPLEFT", "Top Left")
-			container:Add("TOPRIGHT", "Top Right")
-			container:Add("BOTTOMLEFT", "Bottom Left")
-			container:Add("BOTTOMRIGHT", "Bottom Right")
+			container:Add("TOPLEFT", "Top left")
+			container:Add("TOPRIGHT", "Top right")
+			container:Add("BOTTOMLEFT", "Bottom left")
+			container:Add("BOTTOMRIGHT", "Bottom right")
 			return container:GetData()
-		end, "Where on the button the number is anchored.")
+		end, "Where the number sits on the icon.")
 
-		AddSlider(
+		local offsetX = AddSlider(
 			category,
 			"OFFSET_X",
 			"offsetX",
-			"Offset X",
+			"Horizontal offset",
 			defaults.offsetX or 1,
 			-40,
 			40,
@@ -233,14 +322,14 @@ function ns.InitOptions()
 			function(value)
 				return tostring(math.floor(value + 0.5)) .. " px"
 			end,
-			"Horizontal shift of the number from the anchor."
+			"Moves the number left or right."
 		)
 
-		AddSlider(
+		local offsetY = AddSlider(
 			category,
 			"OFFSET_Y",
 			"offsetY",
-			"Offset Y",
+			"Vertical offset",
 			defaults.offsetY or 1,
 			-40,
 			40,
@@ -248,14 +337,14 @@ function ns.InitOptions()
 			function(value)
 				return tostring(math.floor(value + 0.5)) .. " px"
 			end,
-			"Vertical shift of the number from the anchor."
+			"Moves the number up or down."
 		)
 
-		AddSlider(
+		local textSize = AddSlider(
 			category,
 			"FONT_SIZE",
 			"fontSize",
-			"Font size",
+			"Text size",
 			defaults.fontSize or 9,
 			6,
 			32,
@@ -263,69 +352,51 @@ function ns.InitOptions()
 			function(value)
 				return tostring(math.floor(value + 0.5))
 			end,
-			"Size of the cost number."
+			"Size of the number."
 		)
 
-		AddCheckbox(
+		AddHeader(category, "Color")
+
+		local colorByResource = AddCheckbox(
 			category,
 			"TINT",
 			"tintByResource",
-			"Tint by resource type",
+			"Color by resource",
 			defaults.tintByResource == true,
-			"Color the number by power type (mana blue, rage red, energy yellow). When off, uses the color below."
+			"Mana blue, rage red, focus orange, energy yellow. Off uses Text color."
 		)
 
-		AddSlider(
-			category,
-			"COLOR_R",
-			"colorR",
-			"Text color red",
-			defaults.colorR or 1,
-			0,
-			1,
-			0.05,
-			function(value)
-				return string.format("%.0f%%", value * 100)
-			end,
-			"Red channel when not tinting by resource."
-		)
+		local textColor = AddColorButton(category, "Used when Color by resource is off.")
 
-		AddSlider(
-			category,
-			"COLOR_G",
-			"colorG",
-			"Text color green",
-			defaults.colorG or 1,
-			0,
-			1,
-			0.05,
-			function(value)
-				return string.format("%.0f%%", value * 100)
-			end,
-			"Green channel when not tinting by resource."
-		)
-
-		AddSlider(
-			category,
-			"COLOR_B",
-			"colorB",
-			"Text color blue",
-			defaults.colorB or 1,
-			0,
-			1,
-			0.05,
-			function(value)
-				return string.format("%.0f%%", value * 100)
-			end,
-			"Blue channel when not tinting by resource."
-		)
+		local function MasterEnabled()
+			return enableSetting:GetValue()
+		end
+		local function Parent(child)
+			if child then
+				child:SetParentInitializer(enableCheckbox, MasterEnabled)
+			end
+		end
+		Parent(minimapCheckbox)
+		Parent(actionBars)
+		Parent(cooldownSpells)
+		Parent(cooldownBuffs)
+		Parent(percentMana)
+		Parent(percentRage)
+		Parent(percentEnergy)
+		Parent(percentFocus)
+		Parent(numberPosition)
+		Parent(offsetX)
+		Parent(offsetY)
+		Parent(textSize)
+		Parent(colorByResource)
+		Parent(textColor)
 
 		Settings.RegisterAddOnCategory(category)
 	end)
 
 	if not ok then
 		ns.settingsCategory = nil
-		ns.Print("options panel failed: " .. tostring(err))
+		ns.Print("Couldn't open settings.")
 	end
 end
 

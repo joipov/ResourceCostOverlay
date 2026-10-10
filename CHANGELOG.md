@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.2
+
+Settings are grouped and use the same wording as the other Joipov addons.
+
+### Changed
+
+- Sections are Icons, Numbers, Placement, and Color.
+- **Cooldown spells** and **Cooldown buffs** replace the CDM labels.
+- **Horizontal offset**, **Vertical offset**, and **Text size** replace Offset X, Offset Y, and Font size.
+- **Text color** is a color button. The red, green, and blue sliders are gone. Saved colors stay.
+- The other rows grey out while the addon is off.
+
 ## 1.1.1
 
 The minimap button is on by default, including saves that still had it off.
