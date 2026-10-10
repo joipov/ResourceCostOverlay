@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1
+
+The minimap button is on by default, including saves that still had it off.
+
+### Changed
+
+- **Minimap Button** sits under Enable and starts on. Click opens settings.
+- The button uses LibDBIcon when that library is loaded, and the same frame name when it is not, so the default minimap, the addon compartment, Ellesmere, and ElvUI can all show it.
+- The button icon is a note, matching the addon list icon.
+
 ## 1.1.0
 
 Mana costs show as a percent of maximum. Rage, energy, and focus show the raw number. Each resource has its own setting.

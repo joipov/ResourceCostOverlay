@@ -10,7 +10,7 @@ Target client: World of Warcraft **Forever** (`camelot`, TOC `## Interface: 1600
 - Mana, rage, energy, and focus. Other power types are ignored.
 - Mana costs show as a percent of maximum. Rage, energy, and focus show the raw cost. Each resource has its own setting.
 - Optional tint by resource (blue mana, red rage, orange focus, yellow energy).
-- Minimap launcher via LibDBIcon when present, otherwise a built-in button. Off by default. Addon compartment and `/rco` open settings.
+- Minimap launcher via LibDBIcon when present, otherwise a built-in button. On by default. Addon compartment and `/rco` open settings.
 
 ## Commands
 

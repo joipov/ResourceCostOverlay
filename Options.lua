@@ -17,6 +17,22 @@ function _G.ResourceCostOverlay_OnAddonCompartmentClick()
 	ns.OpenSettings()
 end
 
+function _G.ResourceCostOverlay_OnAddonCompartmentEnter(_, owner)
+	if not GameTooltip then
+		return
+	end
+	GameTooltip:SetOwner(owner or UIParent, "ANCHOR_LEFT")
+	GameTooltip:AddLine("Resource Cost on Icons")
+	GameTooltip:AddLine("Click for settings.", 1, 1, 1)
+	GameTooltip:Show()
+end
+
+function _G.ResourceCostOverlay_OnAddonCompartmentLeave()
+	if GameTooltip then
+		GameTooltip:Hide()
+	end
+end
+
 local function OnChanged()
 	if ns.ApplySettings then
 		ns.ApplySettings()
@@ -115,6 +131,21 @@ function ns.InitOptions()
 
 		AddCheckbox(
 			category,
+			"SHOW_MINIMAP",
+			"showMinimapButton",
+			"Minimap Button",
+			defaults.showMinimapButton ~= false,
+			"Button on the minimap. Opens settings. Ellesmere puts it with the other addon buttons.",
+			function()
+				OnChanged()
+				if ns.UpdateMinimapButton then
+					ns.UpdateMinimapButton()
+				end
+			end
+		)
+
+		AddCheckbox(
+			category,
 			"SHOW_BARS",
 			"showActionBars",
 			"Show on action bars",
@@ -174,21 +205,6 @@ function ns.InitOptions()
 			"Focus as % of max",
 			defaults.percentFocus == true,
 			"Show focus costs as a percent of your maximum focus. Off shows the raw cost. Falls back to the raw cost if max focus cannot be read."
-		)
-
-		AddCheckbox(
-			category,
-			"SHOW_MINIMAP",
-			"showMinimapButton",
-			"Show minimap button",
-			defaults.showMinimapButton == true,
-			"Show a minimap button that opens these settings. Off by default. The addon compartment entry always works.",
-			function()
-				OnChanged()
-				if ns.UpdateMinimapButton then
-					ns.UpdateMinimapButton()
-				end
-			end
 		)
 
 		AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()

@@ -1,6 +1,6 @@
 local _, ns = ...
 
-local DB_VERSION = 8
+local DB_VERSION = 9
 
 local ANCHORS = {
 	CENTER = true,
@@ -23,8 +23,8 @@ local defaults = {
 	percentRage = false,
 	percentEnergy = false,
 	percentFocus = false,
-	showMinimapButton = false,
-	minimapAngle = 220,
+	showMinimapButton = true,
+	minimapAngle = 245,
 	anchor = "BOTTOMLEFT",
 	offsetX = 1,
 	offsetY = 1,
@@ -133,6 +133,18 @@ local function MigrateDB(db)
 		db.percentEnergy = false
 		db.percentFocus = false
 		db.showAsPercent = nil
+	end
+	if version < 9 then
+		-- The button used to default off, and that false was written into
+		-- saved variables. Turn it on once. A later choice stays put.
+		-- 220 was the old default angle and sat on Five Second Overlay.
+		db.showMinimapButton = true
+		if db.minimapAngle == 220 then
+			db.minimapAngle = 245
+		end
+		if type(db.minimapIcon) == "table" and db.minimapIcon.minimapPos == 220 then
+			db.minimapIcon.minimapPos = 245
+		end
 	end
 	db.version = DB_VERSION
 	return version
