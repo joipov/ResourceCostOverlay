@@ -1,6 +1,6 @@
 local _, ns = ...
 
-local DB_VERSION = 7
+local DB_VERSION = 8
 
 local ANCHORS = {
 	CENTER = true,
@@ -19,7 +19,10 @@ local defaults = {
 	showActionBars = false,
 	showCdmSpellBars = true,
 	showCdmBuffBars = true,
-	showAsPercent = false,
+	percentMana = true,
+	percentRage = false,
+	percentEnergy = false,
+	percentFocus = false,
 	showMinimapButton = false,
 	minimapAngle = 220,
 	anchor = "BOTTOMLEFT",
@@ -60,7 +63,11 @@ local function Validate(db)
 	db.showCdmSpellBars = db.showCdmSpellBars ~= false
 	db.showCdmBuffBars = db.showCdmBuffBars ~= false
 	db.showCooldownManager = nil
-	db.showAsPercent = db.showAsPercent == true
+	db.percentMana = db.percentMana ~= false
+	db.percentRage = db.percentRage == true
+	db.percentEnergy = db.percentEnergy == true
+	db.percentFocus = db.percentFocus == true
+	db.showAsPercent = nil
 	db.showMinimapButton = db.showMinimapButton == true
 	db.minimapAngle = ClampNumber(db.minimapAngle, -360, 360, defaults.minimapAngle)
 	if type(db.minimapIcon) ~= "table" then
@@ -117,6 +124,15 @@ local function MigrateDB(db)
 		db.showCdmSpellBars = cdmOn
 		db.showCdmBuffBars = cdmOn
 		db.showCooldownManager = nil
+	end
+	if version < 8 then
+		-- One percent toggle covered every resource. Mana stays a percent.
+		-- Rage, energy, and focus show the raw cost.
+		db.percentMana = true
+		db.percentRage = false
+		db.percentEnergy = false
+		db.percentFocus = false
+		db.showAsPercent = nil
 	end
 	db.version = DB_VERSION
 	return version

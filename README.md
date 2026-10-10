@@ -8,7 +8,7 @@ Target client: World of Warcraft **Forever** (`camelot`, TOC `## Interface: 1600
 
 - Cost text on Cooldown Manager spell bars and buff bars. Action bars are optional.
 - Mana, rage, energy, and focus. Other power types are ignored.
-- Absolute cost by default. Settings can show the cost as a percent of your maximum.
+- Mana costs show as a percent of maximum. Rage, energy, and focus show the raw cost. Each resource has its own setting.
 - Optional tint by resource (blue mana, red rage, orange focus, yellow energy).
 - Minimap launcher via LibDBIcon when present, otherwise a built-in button. Off by default. Addon compartment and `/rco` open settings.
 
@@ -18,7 +18,8 @@ Target client: World of Warcraft **Forever** (`camelot`, TOC `## Interface: 1600
 | --- | --- |
 | `/rco`, `/resourcecost` | Open the settings panel |
 | `/rco bars` | Toggle action-bar costs |
-| `/rco percent` | Toggle percent of maximum |
+| `/rco percent` | Show which resources use a percent |
+| `/rco percent mana` | Toggle mana as a percent (`rage`, `energy`, `focus` too) |
 | `/rco minimap` | Toggle the minimap button |
 | `/rco toggle` | Enable or disable the overlay |
 | `/rco debug` | Print target discovery |

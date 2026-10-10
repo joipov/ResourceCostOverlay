@@ -29,6 +29,13 @@ local POWER_TINT = {
 	[POWER_ENERGY] = { 1.00, 0.95, 0.20 },
 }
 
+local PERCENT_KEY = {
+	[POWER_MANA] = "percentMana",
+	[POWER_RAGE] = "percentRage",
+	[POWER_FOCUS] = "percentFocus",
+	[POWER_ENERGY] = "percentEnergy",
+}
+
 local FONT_PATH_FALLBACK = "Fonts\\FRIZQT__.TTF"
 local REFRESH_THROTTLE = 0.08
 
@@ -436,7 +443,8 @@ function ns.ComputeDisplay(spellID)
 		return nil
 	end
 
-	if db.showAsPercent then
+	local percentKey = PERCENT_KEY[powerType]
+	if percentKey and db[percentKey] then
 		local maxPower = ReadableNumber(UnitPowerMax("player", powerType))
 		if maxPower and maxPower > 0 then
 			local pct = math.floor((cost / maxPower) * 100 + 0.5)

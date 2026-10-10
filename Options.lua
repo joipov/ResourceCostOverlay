@@ -142,11 +142,38 @@ function ns.InitOptions()
 
 		AddCheckbox(
 			category,
-			"SHOW_PERCENT",
-			"showAsPercent",
-			"Show as % of max power",
-			defaults.showAsPercent == true,
-			"Show cost as a percent of your maximum mana, energy, rage, or focus. Falls back to the raw cost if max power cannot be read."
+			"PERCENT_MANA",
+			"percentMana",
+			"Mana as % of max",
+			defaults.percentMana ~= false,
+			"Show mana costs as a percent of your maximum mana. Off shows the raw cost. Falls back to the raw cost if max mana cannot be read."
+		)
+
+		AddCheckbox(
+			category,
+			"PERCENT_RAGE",
+			"percentRage",
+			"Rage as % of max",
+			defaults.percentRage == true,
+			"Show rage costs as a percent of your maximum rage. Off shows the raw cost. Falls back to the raw cost if max rage cannot be read."
+		)
+
+		AddCheckbox(
+			category,
+			"PERCENT_ENERGY",
+			"percentEnergy",
+			"Energy as % of max",
+			defaults.percentEnergy == true,
+			"Show energy costs as a percent of your maximum energy. Off shows the raw cost. Falls back to the raw cost if max energy cannot be read."
+		)
+
+		AddCheckbox(
+			category,
+			"PERCENT_FOCUS",
+			"percentFocus",
+			"Focus as % of max",
+			defaults.percentFocus == true,
+			"Show focus costs as a percent of your maximum focus. Off shows the raw cost. Falls back to the raw cost if max focus cannot be read."
 		)
 
 		AddCheckbox(
@@ -298,12 +325,45 @@ _G.SlashCmdList.RCO = function(msg)
 		end
 		return
 	end
-	if msg == "percent" or msg == "pct" then
-		if ns.db then
-			ns.db.showAsPercent = not ns.db.showAsPercent
-			ns.ApplySettings()
-			ns.Print("Percent of max: " .. (ns.db.showAsPercent and "on" or "off") .. ".")
+	if msg == "percent" or msg == "pct" or msg:match("^percent ") or msg:match("^pct ") then
+		if not ns.db then
+			return
 		end
+		local which = msg:match("^p%w*%s+(%S+)$")
+		local keys = {
+			mana = "percentMana",
+			rage = "percentRage",
+			energy = "percentEnergy",
+			focus = "percentFocus",
+		}
+		local labels = {
+			percentMana = "Mana",
+			percentRage = "Rage",
+			percentEnergy = "Energy",
+			percentFocus = "Focus",
+		}
+		if which then
+			local key = keys[which]
+			if not key then
+				ns.Print("Use mana, rage, energy, or focus.")
+				return
+			end
+			ns.db[key] = not ns.db[key]
+			ns.ApplySettings()
+			ns.Print(labels[key] .. " as % of max: " .. (ns.db[key] and "on" or "off") .. ".")
+			return
+		end
+		ns.Print(
+			"Mana "
+				.. (ns.db.percentMana and "on" or "off")
+				.. ", rage "
+				.. (ns.db.percentRage and "on" or "off")
+				.. ", energy "
+				.. (ns.db.percentEnergy and "on" or "off")
+				.. ", focus "
+				.. (ns.db.percentFocus and "on" or "off")
+				.. ". /rco percent mana|rage|energy|focus toggles one."
+		)
 		return
 	end
 	if msg == "minimap" or msg == "mm" then
@@ -359,7 +419,7 @@ _G.SlashCmdList.RCO = function(msg)
 		return
 	end
 	if msg == "help" then
-		ns.Print("/rco — settings | bars | percent | minimap | toggle | debug | mouse")
+		ns.Print("/rco — settings | bars | percent [mana|rage|energy|focus] | minimap | toggle | debug | mouse")
 		return
 	end
 	ns.OpenSettings()

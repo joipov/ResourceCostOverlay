@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0
+
+Mana costs show as a percent of maximum. Rage, energy, and focus show the raw number. Each resource has its own setting.
+
+### Changed
+
+- The addon list groups this under Joipov Tools. The list name has no Joipov prefix.
+- The single "percent of max" toggle is now one checkbox per resource: mana, rage, energy, and focus.
+- Mana defaults to a percent. Rage, energy, and focus default to the raw cost.
+- `/rco percent` prints those four states. `/rco percent mana` (or rage, energy, focus) toggles one.
+
 ## 1.0.1
 
 Resource Cost on Icons loads on its own. Chat lines no longer go through another addon. The numbers are unchanged.
