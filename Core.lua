@@ -43,8 +43,8 @@ local driver = CreateFrame("Frame")
 local overlays = {} -- [button] = FontString
 local trackedButtons = {}
 local cooldownSpellCache = {} -- [cooldownID] = spellID
-local pendingRefresh = false
-local refreshAt = 0
+local refreshSerial = 0
+local refreshQueued = false
 local layoutDirty = true
 
 local function Print(msg)
@@ -788,7 +788,6 @@ function ns.RefreshAll()
 	local db = DB()
 	if not db or not db.enabled then
 		ns.ClearAllOverlays()
-		pendingRefresh = false
 		return
 	end
 
@@ -814,95 +813,111 @@ function ns.RefreshAll()
 	end
 
 	layoutDirty = false
-	pendingRefresh = false
 end
 
+-- First delayed request arms one timer. Further requests before it fires do
+-- nothing. An immediate refresh runs now and drops a timer that has not fired.
 function ns.RequestRefresh(immediate)
 	if immediate then
+		refreshSerial = refreshSerial + 1
+		refreshQueued = false
 		ns.RefreshAll()
 		return
 	end
-	pendingRefresh = true
-	refreshAt = GetTime() + REFRESH_THROTTLE
-end
-
-local function OnUpdate()
-	if not pendingRefresh then
+	if refreshQueued then
 		return
 	end
-	if GetTime() >= refreshAt then
+	refreshQueued = true
+	local serial = refreshSerial
+	local function Fire()
+		if serial ~= refreshSerial or not refreshQueued then
+			return
+		end
+		refreshQueued = false
 		ns.RefreshAll()
 	end
+	if C_Timer and C_Timer.After then
+		C_Timer.After(REFRESH_THROTTLE, Fire)
+	else
+		Fire()
+	end
 end
 
-local function OnEvent(_, event, arg1)
-	if event == "ADDON_LOADED" then
-		if arg1 ~= ADDON_NAME then
-			return
-		end
-		ns.db = ns.LoadDB(_G.ResourceCostOverlayDB)
-		_G.ResourceCostOverlayDB = ns.db
-		return
-	end
-
-	if event == "PLAYER_LOGIN" then
-		Print("Type |cffffffff/rco|r to open settings.")
-		ns.InvalidateKnownRanks()
-		if ns.InitOptions then
-			ns.InitOptions()
-		end
-		if ns.CreateMinimapButton then
-			ns.CreateMinimapButton()
-		end
-		if ns.HookTargets then
-			ns.HookTargets()
-		end
-		ns.RequestRefresh(true)
-		return
-	end
-
-	if event == "PLAYER_ENTERING_WORLD" then
-		ns.InvalidateKnownRanks()
-		if ns.InitOptions then
-			ns.InitOptions()
-		end
-		if ns.CreateMinimapButton then
-			ns.CreateMinimapButton()
-		end
-		if ns.HookTargets then
-			ns.HookTargets()
-		end
-		ns.RequestRefresh(true)
-		return
-	end
-
-	if event == "UNIT_AURA" then
-		if arg1 ~= "player" then
-			return
-		end
-		-- Ellesmere repaints missing-buff placeholders shortly after the aura
-		-- event. Wait so _phSpellID is set before we draw.
-		if C_Timer and C_Timer.After then
-			C_Timer.After(0.3, function()
-				ns.RequestRefresh(false)
-			end)
-		else
-			ns.RequestRefresh(false)
-		end
-		return
-	end
-
-	if event == "UNIT_MAXPOWER" and arg1 ~= "player" then
-		return
-	end
-
-	if event == "SPELLS_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
-		ns.InvalidateKnownRanks()
-	end
-
+local function RefreshNow()
 	ns.MarkLayoutDirty()
 	ns.RequestRefresh(true)
 end
+
+local function InvalidateAndRefresh()
+	ns.InvalidateKnownRanks()
+	RefreshNow()
+end
+
+local function Prepare()
+	ns.InvalidateKnownRanks()
+	if ns.InitOptions then
+		ns.InitOptions()
+	end
+	if ns.CreateMinimapButton then
+		ns.CreateMinimapButton()
+	end
+	if ns.HookTargets then
+		ns.HookTargets()
+	end
+	ns.RequestRefresh(true)
+end
+
+local handlers = {}
+
+function handlers.ADDON_LOADED(name)
+	if name ~= ADDON_NAME then
+		return
+	end
+	ns.db = ns.LoadDB(_G.ResourceCostOverlayDB)
+	_G.ResourceCostOverlayDB = ns.db
+	driver:UnregisterEvent("ADDON_LOADED")
+end
+
+function handlers.PLAYER_LOGIN()
+	Print("Type |cffffffff/rco|r to open settings.")
+	Prepare()
+end
+
+function handlers.PLAYER_ENTERING_WORLD()
+	Prepare()
+end
+
+function handlers.UNIT_AURA(unit)
+	if unit and unit ~= "player" then
+		return
+	end
+	-- Ellesmere repaints missing-buff placeholders shortly after the aura
+	-- event. Wait so _phSpellID is set before we draw.
+	if C_Timer and C_Timer.After then
+		C_Timer.After(0.3, function()
+			ns.RequestRefresh(false)
+		end)
+	else
+		ns.RequestRefresh(false)
+	end
+end
+
+function handlers.UNIT_MAXPOWER(unit)
+	if unit and unit ~= "player" then
+		return
+	end
+	RefreshNow()
+end
+
+handlers.SPELLS_CHANGED = InvalidateAndRefresh
+handlers.PLAYER_SPECIALIZATION_CHANGED = InvalidateAndRefresh
+handlers.TRAIT_CONFIG_UPDATED = InvalidateAndRefresh
+handlers.ACTIONBAR_SLOT_CHANGED = RefreshNow
+handlers.ACTIONBAR_PAGE_CHANGED = RefreshNow
+handlers.UPDATE_BONUS_ACTIONBAR = RefreshNow
+handlers.UPDATE_SHAPESHIFT_FORM = RefreshNow
+handlers.PLAYER_EQUIPMENT_CHANGED = RefreshNow
+handlers.ACTIONBAR_UPDATE_STATE_CHANGED = RefreshNow
 
 driver:RegisterEvent("ADDON_LOADED")
 driver:RegisterEvent("PLAYER_LOGIN")
@@ -913,18 +928,23 @@ driver:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
 driver:RegisterEvent("UPDATE_BONUS_ACTIONBAR")
 driver:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 driver:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-driver:RegisterEvent("UNIT_MAXPOWER")
 if driver.RegisterUnitEvent then
 	driver:RegisterUnitEvent("UNIT_AURA", "player")
+	driver:RegisterUnitEvent("UNIT_MAXPOWER", "player")
 else
 	driver:RegisterEvent("UNIT_AURA")
+	driver:RegisterEvent("UNIT_MAXPOWER")
 end
 pcall(driver.RegisterEvent, driver, "ACTIONBAR_UPDATE_STATE_CHANGED")
 pcall(driver.RegisterEvent, driver, "PLAYER_SPECIALIZATION_CHANGED")
 pcall(driver.RegisterEvent, driver, "TRAIT_CONFIG_UPDATED")
 
-driver:SetScript("OnEvent", OnEvent)
-driver:SetScript("OnUpdate", OnUpdate)
+driver:SetScript("OnEvent", function(_, event, arg1)
+	local handler = handlers[event]
+	if handler then
+		handler(arg1)
+	end
+end)
 
 function ns.SetEnabled(enabled)
 	local db = DB()
