@@ -8,7 +8,7 @@
 ## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface\Icons\Ability_Warrior_Disarm
 ## AddonCompartmentFunc: ResourceCostOverlay_OnAddonCompartmentClick
-## X-License: All Rights Reserved
+## X-License: MIT
 ## X-Website: https://github.com/joipov/ResourceCostOverlay
 ## AllowLoadGameType: camelot
 
