@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.0
+## 1.2.1
 
 Fewer needless refreshes, and two small fixes.
 
@@ -12,6 +12,8 @@ Fewer needless refreshes, and two small fixes.
 ### Changed
 
 - Paging, spec, equipment, and similar events now coalesce into one delayed refresh instead of refreshing immediately per event.
+- A burst of aura events arms a single delayed refresh.
+- The font is resolved once and set on a label only when it changes.
 - The minimap position is stored in LibDBIcon's own table, so dragging the button with LibDBIcon keeps its place.
 - The addon loads only on the `forever` game type.
 

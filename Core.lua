@@ -63,7 +63,13 @@ local function DB()
 end
 
 --- Blizzard default font, or Ellesmere's configured UI font when EUI is loaded.
+--- Cached; ApplySettings clears it.
+local cachedFontPath, cachedFontFlags
+
 local function ResolveFont()
+	if cachedFontPath then
+		return cachedFontPath, cachedFontFlags
+	end
 	if EllesmereUI and EllesmereUI.GetFontPath then
 		local path = EllesmereUI.GetFontPath()
 		if type(path) == "string" and path ~= "" then
@@ -76,10 +82,12 @@ local function ResolveFont()
 			elseif not tostring(flags):find("OUTLINE", 1, true) then
 				flags = tostring(flags) .. ",OUTLINE"
 			end
+			cachedFontPath, cachedFontFlags = path, flags
 			return path, flags
 		end
 	end
 	local path = (STANDARD_TEXT_FONT and STANDARD_TEXT_FONT ~= "" and STANDARD_TEXT_FONT) or FONT_PATH_FALLBACK
+	cachedFontPath, cachedFontFlags = path, "OUTLINE"
 	return path, "OUTLINE"
 end
 
@@ -520,7 +528,11 @@ local function ApplyTextStyle(fs, powerType)
 
 	local size = db.fontSize or 9
 	local path, flags = ResolveFont()
-	fs:SetFont(path, size, flags)
+	local fontKey = path .. ":" .. size .. ":" .. flags
+	if fs.fontKey ~= fontKey then
+		fs:SetFont(path, size, flags)
+		fs.fontKey = fontKey
+	end
 
 	if db.tintByResource and powerType and POWER_TINT[powerType] then
 		local c = POWER_TINT[powerType]
@@ -947,19 +959,25 @@ function handlers.PLAYER_ENTERING_WORLD()
 	Prepare()
 end
 
+-- Ellesmere repaints missing-buff placeholders shortly after the aura event.
+-- One shared delay, so a burst of auras arms a single refresh.
+local auraQueued = false
+local function QueueAuraRefresh()
+	if auraQueued then
+		return
+	end
+	auraQueued = true
+	C_Timer.After(0.3, function()
+		auraQueued = false
+		ns.RequestRefresh(false)
+	end)
+end
+
 function handlers.UNIT_AURA(unit)
 	if unit and unit ~= "player" then
 		return
 	end
-	-- Ellesmere repaints missing-buff placeholders shortly after the aura
-	-- event. Wait so _phSpellID is set before we draw.
-	if C_Timer and C_Timer.After then
-		C_Timer.After(0.3, function()
-			ns.RequestRefresh(false)
-		end)
-	else
-		ns.RequestRefresh(false)
-	end
+	QueueAuraRefresh()
 end
 
 function handlers.UNIT_MAXPOWER(unit)
@@ -1016,6 +1034,7 @@ function ns.SetEnabled(enabled)
 end
 
 function ns.ApplySettings()
+	cachedFontPath, cachedFontFlags = nil, nil
 	ns.MarkLayoutDirty()
 	ns.RequestRefresh(true)
 end
