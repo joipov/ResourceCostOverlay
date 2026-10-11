@@ -27,3 +27,7 @@ Checked against the Joipov house style and against Warcraft Wiki secret values p
 - The event `if` ladder is a handler table. Spec and trait events still invalidate ranks and then refresh. Other bar events still refresh immediately. The aura handler still waits 0.3s, then requests a delayed refresh.
 
 Left alone: cost lookup, button discovery, the Ellesmere `hooksecurefunc`, and the SavedVariables schema.
+
+## 1.1.3
+
+Action-bar costs use the rank on the button. Cooldown Manager icons still use the trained rank. If `GetSpellPowerCost` returns that trained cost for a lower rank id, the button uses `GetSpellInfo.cost` when the base cost is a different positive number.

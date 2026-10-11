@@ -432,10 +432,11 @@ function ns.DebugTargets()
 		end
 		if sid then
 			withSpell = withSpell + 1
-			local cost, powerType = ns.GetSpellResourceCost(sid)
+			local exact = entry.kind ~= "cdm"
+			local cost, powerType = ns.GetSpellResourceCost(sid, exact)
 			if cost then
 				withCost = withCost + 1
-				local text = ns.ComputeDisplay(sid)
+				local text = ns.ComputeDisplay(sid, exact)
 				if text then
 					shown = shown + 1
 				end

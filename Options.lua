@@ -488,15 +488,17 @@ _G.SlashCmdList.RCO = function(msg)
 			end
 			local sid = ns.ResolveCdmSpellID(node) or ns.ResolveActionSpellID(node)
 			if sid then
-				local cost, powerType = ns.GetSpellResourceCost(sid)
+				local rawCost, rawType = ns.RawSpellResourceCost(sid)
+				local trainedCost, trainedType = ns.GetSpellResourceCost(sid)
 				local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid)
 				ns.Print(string.format(
-					"mouse: frame=%s sid=%s name=%s cost=%s powerType=%s",
+					"mouse: frame=%s sid=%s name=%s raw=%s trained=%s powerType=%s",
 					tostring(node.GetName and node:GetName() or node),
 					tostring(sid),
 					tostring(name),
-					tostring(cost),
-					tostring(powerType)
+					tostring(rawCost),
+					tostring(trainedCost),
+					tostring(rawType or trainedType)
 				))
 				return
 			end

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.3
+
+A lower rank on the action bar shows that rank's cost.
+
+### Fixed
+
+- Action buttons keep the mana, rage, energy, or focus of the rank on the button. Cooldown Manager icons still show the rank you have trained.
+- If the client returns the trained rank's cost for every rank of a spell, the button uses that rank's base cost instead.
+
 ## 1.1.2
 
 Settings are grouped and use the same wording as the other Joipov addons.

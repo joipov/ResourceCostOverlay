@@ -1,6 +1,10 @@
 --[[
   Resource Cost Overlay — simple rage/energy/mana cost numbers on Cooldown
   Manager spell bars, buff bars, and optionally action bars.
+
+  An action button shows the rank placed on it. A Cooldown Manager icon
+  shows the rank the player has trained, because those viewers often store
+  rank 1.
 ]]
 
 local ADDON_NAME, ns = ...
@@ -106,8 +110,9 @@ local function ReadableString(value)
 	return value
 end
 
---- Spellbook name -> the rank the player actually has. Buff viewers often
---- store rank 1, which still has a (smaller) cost, so the low rank must not win.
+--- Spellbook name -> the rank the player has trained. Cooldown Manager icons
+--- often store rank 1, and this map upgrades those. An action button keeps
+--- the rank placed on it.
 local knownByName = {}
 local knownRanksReady = false
 
@@ -390,6 +395,28 @@ local function DirectSpellCost(spellID)
 	return nil
 end
 
+--- Base mana/power on the spell record. Forever puts this on GetSpellInfo.
+--- GetSpellPowerCost is the cast cost, including talents. Use the base only
+--- when that API hands back the trained rank for a lower rank id.
+local function BaseSpellCost(spellID)
+	if not (C_Spell and C_Spell.GetSpellInfo) then
+		return nil
+	end
+	local info = C_Spell.GetSpellInfo(spellID)
+	if not CanIndex(info) then
+		return nil
+	end
+	local cost = ReadableNumber(info.cost)
+	if not cost or cost <= 0 then
+		return nil
+	end
+	local powerType = ReadableNumber(info.powerType)
+	if powerType and not TRACKED_POWER[powerType] then
+		return nil
+	end
+	return cost, powerType
+end
+
 --- Spellbook cast of the same name, when `spellID` itself has no flat cost
 --- (buff-slot aura ids are often "known" and still have no mana cost).
 local function SpellbookCastID(spellID)
@@ -408,21 +435,50 @@ local function SpellbookCastID(spellID)
 	return known
 end
 
---- Flat cost of the player's current rank. A lower rank's cost is not used
---- once a higher trained rank of the same spell is known.
-function ns.GetSpellResourceCost(spellID)
+--- Cost of this spell id. No rank rewrite.
+function ns.RawSpellResourceCost(spellID)
+	spellID = ReadableNumber(spellID)
+	if not spellID or spellID <= 0 then
+		return nil
+	end
+	return DirectSpellCost(spellID)
+end
+
+--- Flat cost. `exact` keeps the spell on an action button, including a lower
+--- rank. Cooldown Manager icons omit it: those viewers often store rank 1,
+--- and that cheap cost must not replace the rank the player casts.
+function ns.GetSpellResourceCost(spellID, exact)
 	spellID = ReadableNumber(spellID)
 	if not spellID or spellID <= 0 then
 		return nil
 	end
 
-	local current = CurrentRankSpellID(spellID)
-	if current then
-		return DirectSpellCost(current)
+	if not exact then
+		local current = CurrentRankSpellID(spellID)
+		if current then
+			return DirectSpellCost(current)
+		end
 	end
+
 	local amount, powerType = DirectSpellCost(spellID)
+	if exact then
+		local current = CurrentRankSpellID(spellID)
+		if current then
+			local trainedAmount = DirectSpellCost(current)
+			-- The client resolved every rank id to the trained spell.
+			if amount and trainedAmount and amount == trainedAmount then
+				local baseAmount, baseType = BaseSpellCost(spellID)
+				if baseAmount and baseAmount ~= amount then
+					return baseAmount, powerType or baseType
+				end
+			end
+		end
+	end
 	if amount then
 		return amount, powerType
+	end
+	if exact then
+		return nil
 	end
 	local book = SpellbookCastID(spellID)
 	if book then
@@ -432,13 +488,13 @@ function ns.GetSpellResourceCost(spellID)
 end
 
 --- Full cost display only.
-function ns.ComputeDisplay(spellID)
+function ns.ComputeDisplay(spellID, exact)
 	local db = DB()
 	if not db or not db.enabled then
 		return nil
 	end
 
-	local cost, powerType = ns.GetSpellResourceCost(spellID)
+	local cost, powerType = ns.GetSpellResourceCost(spellID, exact)
 	if not cost or not powerType then
 		return nil
 	end
@@ -741,7 +797,7 @@ function ns.ResolveActionSpellID(button)
 	return nil
 end
 
-function ns.UpdateButtonOverlay(button, spellID)
+function ns.UpdateButtonOverlay(button, spellID, exact)
 	if not button then
 		return
 	end
@@ -757,7 +813,7 @@ function ns.UpdateButtonOverlay(button, spellID)
 		return
 	end
 
-	local text, powerType = ns.ComputeDisplay(spellID)
+	local text, powerType = ns.ComputeDisplay(spellID, exact)
 	if not text then
 		ns.HideOverlay(button)
 		return
@@ -802,13 +858,14 @@ function ns.RefreshAll()
 		local button = entry and entry.button
 		if button then
 			local spellID
+			local exact = entry.kind ~= "cdm"
 			if entry.kind == "cdm" then
 				spellID = entry.spellID or ns.ResolveCdmSpellID(button)
 			else
 				-- Always re-resolve: page/bonus remaps change action without new collect cache.
 				spellID = ns.ResolveActionSpellID(button)
 			end
-			ns.UpdateButtonOverlay(button, spellID)
+			ns.UpdateButtonOverlay(button, spellID, exact)
 		end
 	end
 
