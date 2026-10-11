@@ -14,3 +14,13 @@ jobs:
       - uses: nebularg/actions-luacheck@v1
         with:
           args: --no-color -q
+
+  tests:
+    name: unit tests (Lua 5.1)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: "5.1.5"
+      - run: lua tests/run.lua

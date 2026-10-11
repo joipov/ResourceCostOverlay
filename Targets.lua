@@ -11,6 +11,8 @@
 
 local _, ns = ...
 
+local C_Timer = C_Timer
+
 local CDM_SPELL_VIEWERS = {
 	"EssentialCooldownViewer",
 	"UtilityCooldownViewer",
@@ -268,7 +270,7 @@ end
 
 local function CollectEllesmereTbb(out, seen)
 	local mod = GetEcmeModule()
-	if not EllesmereTbbVisible(mod) or type(mod.GetTrackedBuffBars) ~= "function" then
+	if not mod or not EllesmereTbbVisible(mod) or type(mod.GetTrackedBuffBars) ~= "function" then
 		return
 	end
 

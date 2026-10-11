@@ -13,6 +13,7 @@ local issecretvalue = issecretvalue
 local canaccessvalue = canaccessvalue
 local issecrettable = issecrettable
 local canaccesstable = canaccesstable
+local C_Timer = C_Timer
 
 local POWER_MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local POWER_RAGE = Enum and Enum.PowerType and Enum.PowerType.Rage or 1
@@ -753,9 +754,9 @@ function ns.ResolveActionSpellID(button)
 		return nil
 	end
 
-	local actionType, id = GetActionInfo(action)
-	actionType = ReadableString(actionType)
-	id = ReadableNumber(id)
+	local rawType, rawID = GetActionInfo(action)
+	local actionType = ReadableString(rawType)
+	local id = ReadableNumber(rawID)
 	if not actionType or not id then
 		return nil
 	end
@@ -820,6 +821,9 @@ function ns.UpdateButtonOverlay(button, spellID, exact)
 	end
 
 	local fs = ns.EnsureOverlay(button)
+	if not fs then
+		return
+	end
 	if layoutDirty then
 		LayoutOverlay(fs)
 	end
