@@ -2,6 +2,10 @@
 # is pushed, attaches it to a GitHub release and (when the secrets exist)
 # uploads it to CurseForge / Wago / WoWInterface.
 #
+# CurseForge upload is this action. Do not also add the CurseForge
+# repository webhook (.../projects/{id}/package). A tag would be published
+# twice.
+#
 # The game version is taken from the TOC: release.sh maps
 # `## Interface: 16xxx` to the "forever" game type, so no `-g` argument is
 # needed. Upload targets are read from `## X-Curse-Project-ID` /
