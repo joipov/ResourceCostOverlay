@@ -53,10 +53,17 @@ local refreshQueued = false
 local layoutDirty = true
 
 local function Print(msg)
-	print("|cffc4b5fdJoipov|r Resource Cost on Icons: " .. tostring(msg or ""))
+	print("|cff8b5cf6Joipov|r Resource Cost on Icons: " .. tostring(msg or ""))
 end
 
 ns.Print = Print
+
+-- Login line. Name and version come from the TOC, so they never drift.
+function ns.Welcome()
+	local title = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Title") or "Resource Cost on Icons"
+	local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "?"
+	print(string.format("|cff8b5cf6Joipov|r %s (|cff22d3eev%s|r). Type |cffffffff/rco|r to open settings.", title, version))
+end
 
 local function DB()
 	return ns.db
@@ -951,7 +958,7 @@ function handlers.ADDON_LOADED(name)
 end
 
 function handlers.PLAYER_LOGIN()
-	Print("Type |cffffffff/rco|r to open settings.")
+	ns.Welcome()
 	Prepare()
 end
 

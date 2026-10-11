@@ -25,6 +25,7 @@ read_globals = {
 	"issecrettable",
 	"canaccesstable",
 
+	"C_AddOns",
 	"C_Spell",
 	"C_SpellBook",
 	"C_Timer",

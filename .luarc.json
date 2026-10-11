@@ -23,6 +23,7 @@
   ],
   "workspace.checkThirdParty": false,
   "diagnostics.globals": [
+    "C_AddOns",
     "ResourceCostOverlayDB",
     "ResourceCostOverlay_OnAddonCompartmentClick",
     "ResourceCostOverlay_OnAddonCompartmentEnter",
