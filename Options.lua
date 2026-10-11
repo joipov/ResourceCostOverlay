@@ -449,7 +449,7 @@ _G.SlashCmdList.RCO = function(msg)
 				.. (ns.db.percentEnergy and "on" or "off")
 				.. ", focus "
 				.. (ns.db.percentFocus and "on" or "off")
-				.. ". /rco percent mana|rage|energy|focus toggles one."
+				.. ". /rco percent mana, rage, energy, focus toggles one."
 		)
 		return
 	end
@@ -478,8 +478,7 @@ _G.SlashCmdList.RCO = function(msg)
 		return
 	end
 	if msg == "mouse" or msg == "probe" then
-		local focus = GetMouseFoci and GetMouseFoci() or nil
-		local frame = focus and focus[1] or (GetMouseFocus and GetMouseFocus())
+		local frame = GetMouseFoci()[1]
 		-- Walk up a few parents to find a button-like frame.
 		local node = frame
 		for _ = 1, 6 do
@@ -508,7 +507,7 @@ _G.SlashCmdList.RCO = function(msg)
 		return
 	end
 	if msg == "help" then
-		ns.Print("/rco — settings | bars | percent [mana|rage|energy|focus] | minimap | toggle | debug | mouse")
+		ns.Print("/rco: settings, bars, percent [mana, rage, energy, focus], minimap, toggle, debug, mouse")
 		return
 	end
 	ns.OpenSettings()

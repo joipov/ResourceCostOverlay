@@ -12,7 +12,6 @@ local BROKER = "ResourceCostOverlay"
 local DISPLAY = "Resource Cost on Icons"
 local ICON_TEXTURE = "Interface\\Icons\\INV_Misc_Note_01"
 local FRAME_NAME = "LibDBIcon10_" .. BROKER
-local DEFAULT_ANGLE = 245
 
 local minimapBtn
 local ldbIcon
@@ -26,7 +25,7 @@ local function UpdateMinimapButtonPosition()
 	if minimapBtn:GetParent() ~= Minimap then
 		return
 	end
-	local angle = math.rad(ns.db.minimapAngle or DEFAULT_ANGLE)
+	local angle = math.rad(ns.db.minimapIcon.minimapPos)
 	local radius = (Minimap:GetWidth() / 2) + 10
 	minimapBtn:ClearAllPoints()
 	minimapBtn:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * radius, math.sin(angle) * radius)
@@ -108,9 +107,6 @@ local function TryLibDBIcon()
 	end
 
 	local iconDB = MinimapIconDB()
-	if not iconDB.minimapPos then
-		iconDB.minimapPos = ns.db.minimapAngle or DEFAULT_ANGLE
-	end
 	if not icon:IsRegistered(BROKER) then
 		icon:Register(BROKER, obj, iconDB)
 	end
@@ -143,7 +139,7 @@ local function OnButtonDragUpdate()
 	local mx, my = Minimap:GetCenter()
 	local px, py = GetCursorPosition()
 	local scale = Minimap:GetEffectiveScale()
-	ns.db.minimapAngle = math.deg(math.atan2(py / scale - my, px / scale - mx))
+	ns.db.minimapIcon.minimapPos = math.deg(math.atan2(py / scale - my, px / scale - mx)) % 360
 	UpdateMinimapButtonPosition()
 end
 

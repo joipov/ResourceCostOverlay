@@ -18,7 +18,7 @@ if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force 
 $skipNames = @{
 	"assets" = $true
 	"tests" = $true
-	"CODE_AUDIT.md" = $true
+
 	"package.ps1" = $true
 }
 
@@ -28,6 +28,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 function Add-Tree($archive, [string]$from, [string]$prefix) {
 	Get-ChildItem -Force -LiteralPath $from | ForEach-Object {
 		if ($_.Name.StartsWith(".")) { return }
+		if ($_.Name -like 'CODE_AUDIT*') { return }
 		if ($skipNames.ContainsKey($_.Name)) { return }
 		$rel = $prefix + "/" + $_.Name
 		if ($_.PSIsContainer) {

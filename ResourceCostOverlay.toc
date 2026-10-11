@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: Resource Cost on Icons
-## Notes: Shows simple resource costs (rage, energy, mana) on Cooldown Manager spell bars, buff bars, and optionally action bars.
+## Notes: Shows simple resource costs (mana, rage, energy, focus) on Cooldown Manager spell bars, buff bars, and optionally action bars.
 ## Author: Joipov
-## Version: 1.1.3
+## Version: 1.2.0
 ## Category: |cffc4b5fdJoipov|r Tools
 ## SavedVariables: ResourceCostOverlayDB
 ## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
@@ -12,7 +12,8 @@
 ## AddonCompartmentFuncOnLeave: ResourceCostOverlay_OnAddonCompartmentLeave
 ## X-License: MIT
 ## X-Website: https://github.com/joipov/ResourceCostOverlay
-## AllowLoadGameType: camelot
+## AllowLoadGameType: forever
+## ExcludeLoadGameType: standard, classic
 
 Database.lua
 Core.lua

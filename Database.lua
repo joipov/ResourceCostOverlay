@@ -1,6 +1,10 @@
 local _, ns = ...
 
-local DB_VERSION = 9
+-- Saved variables: defaults, migrations, validation. Plain Lua, so the tests
+-- can load it without a client.
+
+local DB_VERSION = 10
+local MINIMAP_POS = 245
 
 local ANCHORS = {
 	CENTER = true,
@@ -14,6 +18,7 @@ local ANCHORS = {
 	BOTTOMRIGHT = true,
 }
 
+-- Scalars only. Tables are built fresh in EnsureTables.
 local defaults = {
 	enabled = true,
 	showActionBars = false,
@@ -24,7 +29,6 @@ local defaults = {
 	percentEnergy = false,
 	percentFocus = false,
 	showMinimapButton = true,
-	minimapAngle = 245,
 	anchor = "BOTTOMLEFT",
 	offsetX = 1,
 	offsetY = 1,
@@ -36,7 +40,7 @@ local defaults = {
 }
 
 local function ClampNumber(value, lo, hi, fallback)
-	if type(value) ~= "number" then
+	if type(value) ~= "number" or value ~= value then
 		return fallback
 	end
 	if value < lo then
@@ -48,46 +52,32 @@ local function ClampNumber(value, lo, hi, fallback)
 	return value
 end
 
+local function EnsureTables(db)
+	if type(db.minimapIcon) ~= "table" then
+		db.minimapIcon = {}
+	end
+	db.minimapIcon.minimapPos = ClampNumber(db.minimapIcon.minimapPos, 0, 360, MINIMAP_POS)
+end
+
 local function CopyDefaults(db)
 	for key, value in pairs(defaults) do
 		if type(db[key]) ~= type(value) then
 			db[key] = value
 		end
 	end
-	return db
+	EnsureTables(db)
 end
 
 local function Validate(db)
-	db.enabled = db.enabled ~= false
-	db.showActionBars = db.showActionBars == true
-	db.showCdmSpellBars = db.showCdmSpellBars ~= false
-	db.showCdmBuffBars = db.showCdmBuffBars ~= false
-	db.showCooldownManager = nil
-	db.percentMana = db.percentMana ~= false
-	db.percentRage = db.percentRage == true
-	db.percentEnergy = db.percentEnergy == true
-	db.percentFocus = db.percentFocus == true
-	db.showAsPercent = nil
-	db.showMinimapButton = db.showMinimapButton == true
-	db.minimapAngle = ClampNumber(db.minimapAngle, -360, 360, defaults.minimapAngle)
-	if type(db.minimapIcon) ~= "table" then
-		db.minimapIcon = {}
-	end
 	if type(db.anchor) ~= "string" or not ANCHORS[db.anchor] then
 		db.anchor = defaults.anchor
 	end
-	db.offsetX = ClampNumber(db.offsetX, -40, 40, defaults.offsetX)
-	db.offsetY = ClampNumber(db.offsetY, -40, 40, defaults.offsetY)
-	db.offsetX = math.floor(db.offsetX + 0.5)
-	db.offsetY = math.floor(db.offsetY + 0.5)
-	db.fontSize = ClampNumber(db.fontSize, 6, 32, defaults.fontSize)
-	db.fontSize = math.floor(db.fontSize + 0.5)
-	db.tintByResource = db.tintByResource == true
+	db.offsetX = math.floor(ClampNumber(db.offsetX, -40, 40, defaults.offsetX) + 0.5)
+	db.offsetY = math.floor(ClampNumber(db.offsetY, -40, 40, defaults.offsetY) + 0.5)
+	db.fontSize = math.floor(ClampNumber(db.fontSize, 6, 32, defaults.fontSize) + 0.5)
 	db.colorR = ClampNumber(db.colorR, 0, 1, defaults.colorR)
 	db.colorG = ClampNumber(db.colorG, 0, 1, defaults.colorG)
 	db.colorB = ClampNumber(db.colorB, 0, 1, defaults.colorB)
-	-- Drop removed setting.
-	db.displayMode = nil
 end
 
 local function MigrateDB(db)
@@ -112,7 +102,7 @@ local function MigrateDB(db)
 	end
 	if version < 6 then
 		db.showMinimapButton = false
-		db.minimapAngle = defaults.minimapAngle
+		db.minimapAngle = MINIMAP_POS
 		if type(db.minimapIcon) ~= "table" then
 			db.minimapIcon = {}
 		end
@@ -135,30 +125,37 @@ local function MigrateDB(db)
 		db.showAsPercent = nil
 	end
 	if version < 9 then
-		-- The button used to default off, and that false was written into
-		-- saved variables. Turn it on once. A later choice stays put.
-		-- 220 was the old default angle and sat on Five Second Overlay.
+		-- The button used to default off, and that false was saved. Turn it on
+		-- once. 220 was the old shared default angle.
 		db.showMinimapButton = true
 		if db.minimapAngle == 220 then
-			db.minimapAngle = 245
+			db.minimapAngle = MINIMAP_POS
 		end
 		if type(db.minimapIcon) == "table" and db.minimapIcon.minimapPos == 220 then
-			db.minimapIcon.minimapPos = 245
+			db.minimapIcon.minimapPos = MINIMAP_POS
 		end
 	end
+	if version < 10 then
+		-- The built-in button kept its own angle. LibDBIcon's table holds it now.
+		if type(db.minimapIcon) ~= "table" then
+			db.minimapIcon = {}
+		end
+		if type(db.minimapIcon.minimapPos) ~= "number" and type(db.minimapAngle) == "number" then
+			db.minimapIcon.minimapPos = db.minimapAngle % 360
+		end
+		db.minimapAngle = nil
+	end
 	db.version = DB_VERSION
-	return version
 end
 
 function ns.LoadDB(saved)
-	local db = type(saved) == "table" and saved or {}
+	ns.firstRun = type(saved) ~= "table"
+	local db = ns.firstRun and {} or saved
 	MigrateDB(db)
 	CopyDefaults(db)
 	Validate(db)
 	return db
 end
 
-ns.DB_DEFAULTS = defaults
-ns.DB_VERSION = DB_VERSION
 ns.defaults = defaults
-ns.ANCHORS = ANCHORS
+ns.DB_VERSION = DB_VERSION

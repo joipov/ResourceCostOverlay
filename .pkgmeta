@@ -10,7 +10,7 @@ ignore:
   - .luacheckrc
   - .luarc.json
   - tests
-  - CODE_AUDIT.md
+  - CODE_AUDIT*.md
   - package.ps1
 
 manual-changelog: CHANGELOG.md

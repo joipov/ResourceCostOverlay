@@ -782,8 +782,9 @@ function ns.ResolveActionSpellID(button)
 			end
 		end
 	end
-	-- Some Forever slots report an unusual type/subtype but still map to a spell.
-	if C_Spell and C_Spell.GetSpellInfo then
+	-- Some Forever slots report an unusual spell-like type. Never feed an item
+	-- or macro id to GetSpellInfo: an unrelated spell could own that number.
+	if actionType ~= "item" and actionType ~= "macro" and C_Spell and C_Spell.GetSpellInfo then
 		local info = C_Spell.GetSpellInfo(id)
 		if CanIndex(info) then
 			local sid = ReadableNumber(info.spellID) or id
@@ -838,10 +839,6 @@ end
 
 function ns.SetTrackedButtons(list)
 	trackedButtons = list or {}
-end
-
-function ns.GetTrackedButtons()
-	return trackedButtons
 end
 
 function ns.RefreshAll()
@@ -904,14 +901,16 @@ function ns.RequestRefresh(immediate)
 	end
 end
 
-local function RefreshNow()
+-- Delayed refresh for the noisy events (paging, spec, equipment, aura). They
+-- coalesce into one refresh through RequestRefresh.
+local function RefreshSoon()
 	ns.MarkLayoutDirty()
-	ns.RequestRefresh(true)
+	ns.RequestRefresh(false)
 end
 
 local function InvalidateAndRefresh()
 	ns.InvalidateKnownRanks()
-	RefreshNow()
+	RefreshSoon()
 end
 
 local function Prepare()
@@ -967,18 +966,18 @@ function handlers.UNIT_MAXPOWER(unit)
 	if unit and unit ~= "player" then
 		return
 	end
-	RefreshNow()
+	RefreshSoon()
 end
 
 handlers.SPELLS_CHANGED = InvalidateAndRefresh
 handlers.PLAYER_SPECIALIZATION_CHANGED = InvalidateAndRefresh
 handlers.TRAIT_CONFIG_UPDATED = InvalidateAndRefresh
-handlers.ACTIONBAR_SLOT_CHANGED = RefreshNow
-handlers.ACTIONBAR_PAGE_CHANGED = RefreshNow
-handlers.UPDATE_BONUS_ACTIONBAR = RefreshNow
-handlers.UPDATE_SHAPESHIFT_FORM = RefreshNow
-handlers.PLAYER_EQUIPMENT_CHANGED = RefreshNow
-handlers.ACTIONBAR_UPDATE_STATE_CHANGED = RefreshNow
+handlers.ACTIONBAR_SLOT_CHANGED = RefreshSoon
+handlers.ACTIONBAR_PAGE_CHANGED = RefreshSoon
+handlers.UPDATE_BONUS_ACTIONBAR = RefreshSoon
+handlers.UPDATE_SHAPESHIFT_FORM = RefreshSoon
+handlers.PLAYER_EQUIPMENT_CHANGED = RefreshSoon
+handlers.ACTIONBAR_UPDATE_STATE_CHANGED = RefreshSoon
 
 driver:RegisterEvent("ADDON_LOADED")
 driver:RegisterEvent("PLAYER_LOGIN")

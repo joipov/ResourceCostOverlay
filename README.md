@@ -36,8 +36,8 @@ Loaded in TOC order; modules communicate only through the shared `ns` table.
 | `Database.lua` | SavedVariables defaults, migrations, validation |
 | `Core.lua` | Spell cost, action-bar rank, trained rank for Cooldown Manager, overlay text |
 | `Targets.lua` | Cooldown Manager and action buttons to label |
-| `MinimapButton.lua` | LibDBIcon launcher or built-in button |
-| `Options.lua` | Settings panel, addon compartment, slash commands |
+| `MinimapButton.lua` | LibDBIcon launcher or built-in button, addon compartment |
+| `Options.lua` | Settings panel, slash commands |
 
 ## Development
 
@@ -52,10 +52,12 @@ Static checks (no game client needed):
 
 ```
 luacheck .            # .luacheckrc: Lua 5.1, explicit WoW globals
+luajit tests/run.lua  # or: lua5.1 tests/run.lua
 ```
 
 LuaLS uses `.luarc.json` and Ketho's WoW API annotations. The repo-local
-`.annotations/` folder declares Blizzard globals those annotations lack.
+`.annotations/` folder declares the Forever secret-value helpers those
+annotations lack.
 
 `assets/` is release media for CurseForge and Wago (screenshots, and a logo
 when one exists). The game does not load it, and it is not part of the addon

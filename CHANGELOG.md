@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.0
+
+Fewer needless refreshes, and two small fixes.
+
+### Fixed
+
+- An action button that holds an item or a macro is no longer mistaken for the spell with the same number, which could show a wrong cost.
+- Slash-command help uses commas, so chat no longer eats the text after `|`.
+
+### Changed
+
+- Paging, spec, equipment, and similar events now coalesce into one delayed refresh instead of refreshing immediately per event.
+- The minimap position is stored in LibDBIcon's own table, so dragging the button with LibDBIcon keeps its place.
+- The addon loads only on the `forever` game type.
+
+### Removed
+
+- The unused `ns.GetTrackedButtons`, `ns.DB_DEFAULTS`, and `ns.ANCHORS`.
+
 ## 1.1.3
 
 A lower rank on the action bar shows that rank's cost.

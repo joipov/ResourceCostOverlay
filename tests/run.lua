@@ -76,7 +76,8 @@ end)
 test("LoadDB turns the minimap button on and moves it off the 220 angle", function()
 	local db = ns.LoadDB({ version = 8, showMinimapButton = false, minimapAngle = 220 })
 	eq(db.showMinimapButton, true, "showMinimapButton")
-	eq(db.minimapAngle, 245, "minimapAngle")
+	eq(db.minimapIcon.minimapPos, 245, "minimapPos")
+	eq(db.minimapAngle, nil, "old key")
 end)
 
 if failed > 0 then
