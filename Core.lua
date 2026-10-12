@@ -58,6 +58,18 @@ end
 
 ns.Print = Print
 
+function ns.Debug(...)
+	if not (ns.db and ns.db.debug) then
+		return
+	end
+	local count = select("#", ...)
+	local parts = {}
+	for i = 1, count do
+		parts[i] = tostring(select(i, ...))
+	end
+	Print(table.concat(parts, " "))
+end
+
 -- Login line. Name and version come from the TOC, so they never drift.
 function ns.Welcome()
 	local title = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Title") or "Resource Cost on Icons"
@@ -69,7 +81,7 @@ local function DB()
 	return ns.db
 end
 
---- Blizzard default font, or Ellesmere's configured UI font when EUI is loaded.
+--- Blizzard default font, or the host addon's configured UI font when that addon is loaded.
 --- Cached; ApplySettings clears it.
 local cachedFontPath, cachedFontFlags
 
@@ -180,30 +192,19 @@ local function SameRankFamily(a, b)
 	return true
 end
 
+local function SpellKnown(known)
+	return not SecretBlocked(known) and known and true or false
+end
+
 local function PlayerKnowsSpell(spellID)
 	spellID = ReadableNumber(spellID)
 	if not spellID then
 		return false
 	end
-	if C_SpellBook and C_SpellBook.IsSpellKnown then
-		local ok, known = pcall(C_SpellBook.IsSpellKnown, spellID)
-		if ok and known then
-			return true
-		end
+	if SpellKnown(C_SpellBook.IsSpellKnown(spellID)) then
+		return true
 	end
-	if IsPlayerSpell then
-		local ok, known = pcall(IsPlayerSpell, spellID)
-		if ok and known then
-			return true
-		end
-	end
-	if IsSpellKnown then
-		local ok, known = pcall(IsSpellKnown, spellID)
-		if ok and known then
-			return true
-		end
-	end
-	return false
+	return SpellKnown(IsPlayerSpell(spellID))
 end
 
 local function RebuildKnownRanks()
@@ -217,22 +218,24 @@ local function RebuildKnownRanks()
 		return
 	end
 	local futureType = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.FutureSpell
-	local okLines, lines = pcall(C_SpellBook.GetNumSpellBookSkillLines)
-	if not okLines or type(lines) ~= "number" or lines <= 0 then
+	local lines = C_SpellBook.GetNumSpellBookSkillLines()
+	if SecretBlocked(lines) or type(lines) ~= "number" or lines <= 0 then
 		return
 	end
 	for index = 1, lines do
-		local okLine, line = pcall(C_SpellBook.GetSpellBookSkillLineInfo, index)
-		if okLine and line and type(line.itemIndexOffset) == "number" and type(line.numSpellBookItems) == "number" then
-			local last = line.itemIndexOffset + line.numSpellBookItems
-			for slot = line.itemIndexOffset + 1, last do
-				local okItem, item = pcall(C_SpellBook.GetSpellBookItemInfo, slot, bank)
-				local itemType = okItem and item and item.itemType
+		local line = C_SpellBook.GetSpellBookSkillLineInfo(index)
+		local offset = CanIndex(line) and ReadableNumber(line.itemIndexOffset)
+		local count = offset and ReadableNumber(line.numSpellBookItems)
+		if offset and count then
+			local last = offset + count
+			for slot = offset + 1, last do
+				local item = C_SpellBook.GetSpellBookItemInfo(slot, bank)
+				local itemType = CanIndex(item) and item.itemType
 				local isFuture = false
 				if itemType ~= nil and not SecretBlocked(itemType) then
 					isFuture = itemType == futureType or itemType == "FUTURESPELL"
 				end
-				if okItem and type(item) == "table" and not isFuture then
+				if CanIndex(item) and not isFuture then
 					local actionID = ReadableNumber(item.actionID)
 					local castID = ReadableNumber(item.spellID)
 					if actionID and actionID <= 0 then
@@ -695,9 +698,9 @@ function ns.ResolveCdmSpellID(child)
 		fc = eui._ecmeFC[child]
 	end
 
-	-- Missing-buff placeholders are Ellesmere's own frames. Their live spell
+	-- Missing-buff placeholders belong to the host addon. Their live spell
 	-- getters and cooldown links are secret or shared while any other aura is
-	-- up. The icon's spell is the plain id Ellesmere stored on the frame.
+	-- up. The icon's spell is the plain id stored on the frame.
 	if child._isPlaceholderFrame then
 		AddSpellCandidate(list, seen, child._phSpellID)
 		if CanIndex(fc) then
@@ -726,16 +729,10 @@ function ns.ResolveCdmSpellID(child)
 	end
 
 	if type(child.GetAuraSpellID) == "function" then
-		local ok, sid = pcall(child.GetAuraSpellID, child)
-		if ok then
-			AddSpellCandidate(list, seen, sid)
-		end
+		AddSpellCandidate(list, seen, child:GetAuraSpellID())
 	end
 	if type(child.GetSpellID) == "function" then
-		local ok, sid = pcall(child.GetSpellID, child)
-		if ok then
-			AddSpellCandidate(list, seen, sid)
-		end
+		AddSpellCandidate(list, seen, child:GetSpellID())
 	end
 
 	if cdID then
@@ -761,10 +758,7 @@ function ns.ResolveActionSpellID(button)
 
 	local action
 	if button.GetAttribute then
-		local ok, value = pcall(button.GetAttribute, button, "action")
-		if ok then
-			action = ReadableNumber(value)
-		end
+		action = ReadableNumber(button:GetAttribute("action"))
 	end
 	if not action or action <= 0 then
 		action = ReadableNumber(button.action)
@@ -962,11 +956,14 @@ function handlers.PLAYER_LOGIN()
 	Prepare()
 end
 
-function handlers.PLAYER_ENTERING_WORLD()
+function handlers.PLAYER_ENTERING_WORLD(isLogin)
+	if isLogin then
+		return
+	end
 	Prepare()
 end
 
--- Ellesmere repaints missing-buff placeholders shortly after the aura event.
+-- The host addon repaints missing-buff placeholders shortly after the aura event.
 -- One shared delay, so a burst of auras arms a single refresh.
 local auraQueued = false
 local function QueueAuraRefresh()
@@ -1020,9 +1017,9 @@ else
 	driver:RegisterEvent("UNIT_AURA")
 	driver:RegisterEvent("UNIT_MAXPOWER")
 end
-pcall(driver.RegisterEvent, driver, "ACTIONBAR_UPDATE_STATE_CHANGED")
-pcall(driver.RegisterEvent, driver, "PLAYER_SPECIALIZATION_CHANGED")
-pcall(driver.RegisterEvent, driver, "TRAIT_CONFIG_UPDATED")
+driver:RegisterEvent("ACTIONBAR_UPDATE_STATE_CHANGED")
+driver:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+driver:RegisterEvent("TRAIT_CONFIG_UPDATED")
 
 driver:SetScript("OnEvent", function(_, event, arg1)
 	local handler = handlers[event]

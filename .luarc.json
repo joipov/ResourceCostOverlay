@@ -52,7 +52,6 @@
     "GameTooltip",
     "hooksecurefunc",
     "IsPlayerSpell",
-    "IsSpellKnown",
     "Minimap",
     "MinimalSliderWithSteppersMixin",
     "Settings",

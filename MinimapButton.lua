@@ -1,133 +1,95 @@
-local _, ns = ...
+local ADDON_NAME, ns = ...
 
--- Minimap launcher. LibDBIcon when that library is already loaded (Questie,
--- BigWigs). Otherwise a button named LibDBIcon10_<addon>, which is the frame
--- Ellesmere, ElvUI, and other collectors look for. The addon compartment is
--- the TOC entry, not LibDBIcon's showInCompartment.
+-- Minimap button and addon compartment. Uses LibDBIcon when another addon has
+-- loaded it. Otherwise builds a button named LibDBIcon10_<addon>, the frame
+-- button collectors look for. Both read and write
+-- db.minimapIcon.
 
-local C_Timer = C_Timer
+local TITLE = "Resource Cost on Icons"
+local ICON = "Interface\\Icons\\INV_Misc_Note_01"
+local CLICK_TEXT = "Click for settings."
+local DRAG_TEXT = "Drag to move."
+
+local FRAME_NAME = "LibDBIcon10_" .. ADDON_NAME
+
+local GameTooltip = GameTooltip
+local Minimap = Minimap
 local GetCursorPosition = GetCursorPosition
 
-local BROKER = "ResourceCostOverlay"
-local DISPLAY = "Resource Cost on Icons"
-local ICON_TEXTURE = "Interface\\Icons\\INV_Misc_Note_01"
-local FRAME_NAME = "LibDBIcon10_" .. BROKER
-
-local minimapBtn
+local button
 local ldbIcon
-local minimapDragging
-local created
+local dragging
 
-local function UpdateMinimapButtonPosition()
-	if not minimapBtn or ldbIcon then
-		return
-	end
-	if minimapBtn:GetParent() ~= Minimap then
-		return
-	end
-	local angle = math.rad(ns.db.minimapIcon.minimapPos)
-	local radius = (Minimap:GetWidth() / 2) + 10
-	minimapBtn:ClearAllPoints()
-	minimapBtn:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * radius, math.sin(angle) * radius)
+local function OnLauncherClick()
+	ns.OpenSettings()
 end
 
-local function MinimapIconDB()
+local function IconDB()
 	local icon = ns.db.minimapIcon
-	if type(icon) ~= "table" then
-		icon = {}
-		ns.db.minimapIcon = icon
-	end
 	icon.hide = not ns.db.showMinimapButton
 	return icon
+end
+
+local function AddTooltipLines(tooltip)
+	tooltip:AddLine(TITLE)
+	tooltip:AddLine(CLICK_TEXT, 1, 1, 1)
+end
+
+local function PlaceButton()
+	local angle = math.rad(ns.db.minimapIcon.minimapPos)
+	local radius = Minimap:GetWidth() / 2 + 10
+	button:ClearAllPoints()
+	button:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * radius, math.sin(angle) * radius)
 end
 
 function ns.UpdateMinimapButton()
 	if not ns.db then
 		return
 	end
+	local icon = IconDB()
 	if ldbIcon then
-		if MinimapIconDB().hide then
-			ldbIcon:Hide(BROKER)
+		if icon.hide then
+			ldbIcon:Hide(ADDON_NAME)
 		else
-			ldbIcon:Show(BROKER)
+			ldbIcon:Show(ADDON_NAME)
 		end
-		return
+	elseif button then
+		button:SetShown(not icon.hide)
+		PlaceButton()
 	end
-	if not minimapBtn then
-		return
-	end
-	if ns.db.showMinimapButton then
-		minimapBtn:Show()
-		UpdateMinimapButtonPosition()
-	else
-		minimapBtn:Hide()
-	end
-end
-
-local function OnLauncherClick()
-	ns.OpenSettings()
-end
-
-local function OnLauncherTooltip(tt)
-	tt:AddLine(DISPLAY)
-	tt:AddLine("Click for settings.", 1, 1, 1)
-end
-
-local function StampButton(button, object, iconDB)
-	if not button then
-		return
-	end
-	button.dataObject = object
-	button.db = iconDB
 end
 
 local function TryLibDBIcon()
 	local LibStub = _G.LibStub
-	if not LibStub then
+	local ldb = LibStub and LibStub:GetLibrary("LibDataBroker-1.1", true)
+	local icon = LibStub and LibStub:GetLibrary("LibDBIcon-1.0", true)
+	if not (ldb and icon) then
 		return false
 	end
-	local ldb = LibStub:GetLibrary("LibDataBroker-1.1", true)
-	local icon = LibStub:GetLibrary("LibDBIcon-1.0", true)
-	if not ldb or not icon then
-		return false
-	end
-
-	local obj = ldb:GetDataObjectByName(BROKER)
-	if not obj then
-		obj = ldb:NewDataObject(BROKER, {
-			type = "launcher",
-			text = DISPLAY,
-			icon = ICON_TEXTURE,
-			OnClick = OnLauncherClick,
-			OnTooltipShow = OnLauncherTooltip,
-		})
-	end
-	if not obj then
-		return false
-	end
-
-	local iconDB = MinimapIconDB()
-	if not icon:IsRegistered(BROKER) then
-		icon:Register(BROKER, obj, iconDB)
+	local object = ldb:GetDataObjectByName(ADDON_NAME) or ldb:NewDataObject(ADDON_NAME, {
+		type = "launcher",
+		text = TITLE,
+		icon = ICON,
+		OnClick = OnLauncherClick,
+		OnTooltipShow = AddTooltipLines,
+	})
+	if not icon:IsRegistered(ADDON_NAME) then
+		icon:Register(ADDON_NAME, object, IconDB())
 	end
 	ldbIcon = icon
-	minimapBtn = (icon.GetMinimapButton and icon:GetMinimapButton(BROKER)) or _G[FRAME_NAME]
-	StampButton(minimapBtn, obj, iconDB)
-	ns.UpdateMinimapButton()
 	return true
 end
 
 local function OnButtonClick()
-	if not minimapDragging then
-		ns.OpenSettings()
+	if not dragging then
+		OnLauncherClick()
 	end
 end
 
 local function OnButtonEnter(self)
 	GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-	GameTooltip:SetText(DISPLAY)
-	GameTooltip:AddLine("Click for settings.", 1, 1, 1)
-	GameTooltip:AddLine("Drag to move.", 0.7, 0.7, 0.7)
+	AddTooltipLines(GameTooltip)
+	GameTooltip:AddLine(DRAG_TEXT, 0.7, 0.7, 0.7)
 	GameTooltip:Show()
 end
 
@@ -135,86 +97,74 @@ local function OnButtonLeave()
 	GameTooltip:Hide()
 end
 
-local function OnButtonDragUpdate()
+local function OnDragUpdate()
 	local mx, my = Minimap:GetCenter()
 	local px, py = GetCursorPosition()
 	local scale = Minimap:GetEffectiveScale()
 	ns.db.minimapIcon.minimapPos = math.deg(math.atan2(py / scale - my, px / scale - mx)) % 360
-	UpdateMinimapButtonPosition()
+	PlaceButton()
 end
 
-local function OnButtonDragStart(self)
-	if self:GetParent() ~= Minimap then
-		return
-	end
-	minimapDragging = true
+local function OnDragStart(self)
+	dragging = true
 	GameTooltip:Hide()
-	self:SetScript("OnUpdate", OnButtonDragUpdate)
+	self:SetScript("OnUpdate", OnDragUpdate)
 end
 
 local function EndDrag()
-	minimapDragging = false
+	dragging = false
 end
 
-local function OnButtonDragStop(self)
+local function OnDragStop(self)
 	self:SetScript("OnUpdate", nil)
+	-- The click that ends a drag arrives after OnDragStop.
 	C_Timer.After(0, EndDrag)
 end
 
-local function CreateFallback()
-	minimapBtn = _G[FRAME_NAME] or CreateFrame("Button", FRAME_NAME, Minimap)
-	minimapBtn:SetParent(Minimap)
-	minimapBtn:SetSize(31, 31)
-	minimapBtn:SetFrameStrata("MEDIUM")
-	minimapBtn:SetFrameLevel((Minimap:GetFrameLevel() or 1) + 8)
-	minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	minimapBtn:RegisterForDrag("LeftButton")
+local function CreateButton()
+	button = CreateFrame("Button", FRAME_NAME, Minimap)
+	button:SetSize(31, 31)
+	button:SetFrameStrata("MEDIUM")
+	button:SetFrameLevel(Minimap:GetFrameLevel() + 8)
+	button:RegisterForClicks("AnyUp")
+	button:RegisterForDrag("LeftButton")
+	button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+	-- Button collectors read these LibDBIcon fields.
+	button.dataObject = { type = "launcher", text = TITLE, icon = ICON }
+	button.db = ns.db.minimapIcon
 
-	local iconDB = MinimapIconDB()
-	StampButton(minimapBtn, {
-		type = "launcher",
-		text = DISPLAY,
-		icon = ICON_TEXTURE,
-	}, iconDB)
+	local background = button:CreateTexture(nil, "BACKGROUND")
+	background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+	background:SetSize(20, 20)
+	background:SetPoint("CENTER")
 
-	if not minimapBtn.joipovInitialized then
-		local bg = minimapBtn:CreateTexture(nil, "BACKGROUND")
-		bg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-		bg:SetSize(20, 20)
-		bg:SetPoint("CENTER")
+	local icon = button:CreateTexture(nil, "ARTWORK")
+	icon:SetTexture(ICON)
+	icon:SetSize(20, 20)
+	icon:SetPoint("CENTER")
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	button.icon = icon
 
-		local icon = minimapBtn:CreateTexture(nil, "ARTWORK")
-		icon:SetSize(20, 20)
-		icon:SetPoint("CENTER")
-		icon:SetTexture(ICON_TEXTURE)
-		icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		minimapBtn.icon = icon
+	local border = button:CreateTexture(nil, "OVERLAY")
+	border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+	border:SetSize(54, 54)
+	border:SetPoint("TOPLEFT", -1, 1)
+	button.border = border
 
-		local border = minimapBtn:CreateTexture(nil, "OVERLAY")
-		border:SetSize(54, 54)
-		border:SetPoint("TOPLEFT", -1, 1)
-		border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-		minimapBtn.border = border
-
-		minimapBtn:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-		minimapBtn:SetScript("OnClick", OnButtonClick)
-		minimapBtn:SetScript("OnEnter", OnButtonEnter)
-		minimapBtn:SetScript("OnLeave", OnButtonLeave)
-		minimapBtn:SetScript("OnDragStart", OnButtonDragStart)
-		minimapBtn:SetScript("OnDragStop", OnButtonDragStop)
-		minimapBtn.joipovInitialized = true
-	end
-
-	ns.UpdateMinimapButton()
+	button:SetScript("OnClick", OnButtonClick)
+	button:SetScript("OnEnter", OnButtonEnter)
+	button:SetScript("OnLeave", OnButtonLeave)
+	button:SetScript("OnDragStart", OnDragStart)
+	button:SetScript("OnDragStop", OnDragStop)
 end
 
+-- Called once at PLAYER_LOGIN, after other addons have loaded LibDBIcon.
 function ns.CreateMinimapButton()
-	if created then
-		ns.UpdateMinimapButton()
+	if ldbIcon or button then
 		return
 	end
-	created = true
 	if not TryLibDBIcon() then
-		CreateFallback()
+		CreateButton()
 	end
+	ns.UpdateMinimapButton()
 end

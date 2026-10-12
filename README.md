@@ -2,7 +2,7 @@
 
 Small numbers for mana, rage, energy, and focus on spell buttons. Cooldown Manager bars are on by default. Action bars are off until you turn them on.
 
-Target client: World of Warcraft **Forever** (`camelot`, TOC `## Interface: 16001`).
+Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 
 ## Features
 

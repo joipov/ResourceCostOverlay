@@ -1,12 +1,12 @@
 --[[
   Discover Cooldown Manager icons and action-bar buttons.
 
-  Supports Blizzard CDM viewers and EllesmereUI (ECME_CDMBar_* / EABButton* /
+  Supports Blizzard CDM viewers and a host addon (ECME_CDMBar_* / EABButton* /
   ECME_TBB*), which reparents or replaces the stock frames.
 
-  Spell bars: Essential + Utility, and Ellesmere bars that are not buff-family.
-  Buff bars: BuffIcon + BuffBar viewers, Ellesmere buff-family icons, and
-  Ellesmere tracking bars when those replace Blizzard's buff bars.
+  Spell bars: Essential + Utility, and host bars that are not buff-family.
+  Buff bars: BuffIcon + BuffBar viewers, host buff-family icons, and
+  host tracking bars when those replace Blizzard's buff bars.
 ]]
 
 local _, ns = ...
@@ -31,11 +31,11 @@ local ACTION_BAR_PREFIXES = {
 	"MultiBar6Button",
 	"MultiBar7Button",
 	"MultiBar8Button",
-	"EABButton", -- EllesmereUIActionBars (EABButton<slot>, through Bar 8)
+	"EABButton", -- host action bars (EABButton<slot>, through Bar 8)
 }
 
 local BUTTONS_PER_BAR = 12
--- Ellesmere Bar 6 is slots 145-156, Bar 7 is 157-168, Bar 8 is 169-180.
+-- Host Bar 6 is slots 145-156, Bar 7 is 157-168, Bar 8 is 169-180.
 -- Slots 121-144 are unused. Bars 9 and 10 sit inside 1-120.
 local EAB_MAX_SLOT = 180
 local hookedViewers = {}
@@ -60,7 +60,7 @@ end
 
 local reanchorHooked = false
 
---- Ellesmere shows a missing-buff placeholder on a bar that is already visible,
+--- The host addon shows a missing-buff placeholder on a bar that is already visible,
 --- so the bar's OnShow never fires. Refresh after the reanchor paint, and the
 --- next time that same placeholder is shown.
 local function HookEllesmereReanchor()
@@ -130,8 +130,8 @@ local function IsBuffFamilyKey(mod, key)
 	return key == "buffs"
 end
 
---- Blizzard tracked bars stay on screen when Ellesmere is absent, when the
---- user opted into Blizzard buff bars, or when Ellesmere is not hiding them.
+--- Blizzard tracked bars stay on screen when the host addon is absent, when the
+--- user opted into Blizzard buff bars, or when the host addon is not hiding them.
 local function BlizzardBuffBarsVisible(mod)
 	if not mod then
 		return true
@@ -315,7 +315,7 @@ local function HookActionButton(button)
 end
 
 local function CollectActionButtons(out, seen)
-	-- Ellesmere action buttons (absolute slots).
+	-- Host action buttons (absolute slots).
 	for slot = 1, EAB_MAX_SLOT do
 		local button = _G["EABButton" .. slot]
 		if IsFrame(button) then
@@ -324,7 +324,7 @@ local function CollectActionButtons(out, seen)
 		end
 	end
 
-	-- Stock Blizzard prefixes (also used if Ellesmere is off).
+	-- Stock Blizzard prefixes (also used if the host addon is off).
 	for p = 1, #ACTION_BAR_PREFIXES do
 		local prefix = ACTION_BAR_PREFIXES[p]
 		if prefix ~= "EABButton" then

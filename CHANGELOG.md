@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.4
+
+Settings text describes the buttons without naming another addon.
+
+### Changed
+
+- The minimap button tooltip says the button opens settings.
+- Action-button coverage is the default buttons and custom action buttons.
+
+## 1.2.3
+
+Costs are prepared once at login, and known spells are read straight from the spellbook.
+
+### Changed
+
+- Entering the world at login no longer builds the labels a second time.
+- A spell you know is checked with the spellbook and `IsPlayerSpell`.
+
 ## 1.2.2
 
 The login line shows the addon name and version. The Joipov name color is a brighter violet.
@@ -58,7 +76,7 @@ The minimap button is on by default, including saves that still had it off.
 ### Changed
 
 - **Minimap Button** sits under Enable and starts on. Click opens settings.
-- The button uses LibDBIcon when that library is loaded, and the same frame name when it is not, so the default minimap, the addon compartment, Ellesmere, and ElvUI can all show it.
+- The button uses LibDBIcon when that library is loaded, and the same frame name when it is not, so the default minimap and the addon compartment can show it.
 - The button icon is a note, matching the addon list icon.
 
 ## 1.1.0

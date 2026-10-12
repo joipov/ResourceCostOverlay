@@ -1,4 +1,4 @@
--- Lua 5.1, explicit WoW globals. Modeled on GatherSkillTooltip / BigWigs.
+-- Lua 5.1, explicit WoW globals. Same layout in every Joipov addon.
 std = "lua51"
 max_line_length = false
 self = false
@@ -7,6 +7,10 @@ exclude_files = {
 	".release/",
 	".annotations/",
 	"assets/",
+}
+
+files["tests/"] = {
+	std = "lua51",
 }
 
 globals = {
@@ -43,7 +47,6 @@ read_globals = {
 	"GameTooltip",
 	"hooksecurefunc",
 	"IsPlayerSpell",
-	"IsSpellKnown",
 	"Minimap",
 	"MinimalSliderWithSteppersMixin",
 	"Settings",

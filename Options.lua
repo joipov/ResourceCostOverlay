@@ -218,7 +218,7 @@ function ns.InitOptions()
 			"showMinimapButton",
 			"Minimap button",
 			defaults.showMinimapButton ~= false,
-			"Button on the minimap. Opens settings. Ellesmere puts it with the other addon buttons.",
+			"Button on the minimap. Opens settings.",
 			function()
 				OnChanged()
 				if ns.UpdateMinimapButton then
@@ -235,7 +235,7 @@ function ns.InitOptions()
 			"showActionBars",
 			"Action bars",
 			defaults.showActionBars == true,
-			"On Blizzard and Ellesmere action buttons."
+			"On the default action buttons and custom action buttons."
 		)
 
 		local cooldownSpells = AddCheckbox(
