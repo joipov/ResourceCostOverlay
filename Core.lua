@@ -999,7 +999,6 @@ handlers.ACTIONBAR_PAGE_CHANGED = RefreshSoon
 handlers.UPDATE_BONUS_ACTIONBAR = RefreshSoon
 handlers.UPDATE_SHAPESHIFT_FORM = RefreshSoon
 handlers.PLAYER_EQUIPMENT_CHANGED = RefreshSoon
-handlers.ACTIONBAR_UPDATE_STATE_CHANGED = RefreshSoon
 
 driver:RegisterEvent("ADDON_LOADED")
 driver:RegisterEvent("PLAYER_LOGIN")
@@ -1017,7 +1016,6 @@ else
 	driver:RegisterEvent("UNIT_AURA")
 	driver:RegisterEvent("UNIT_MAXPOWER")
 end
-driver:RegisterEvent("ACTIONBAR_UPDATE_STATE_CHANGED")
 driver:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 driver:RegisterEvent("TRAIT_CONFIG_UPDATED")
 
