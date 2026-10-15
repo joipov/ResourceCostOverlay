@@ -2,7 +2,7 @@
 ## Title: Resource Cost on Icons
 ## Notes: Shows simple resource costs (mana, rage, energy, focus) on Cooldown Manager spell bars, buff bars, and optionally action bars.
 ## Author: Joipov
-## Version: 1.2.4
+## Version: 1.2.5
 ## Category: |cff8b5cf6Joipov|r Tools
 ## IconTexture: Interface\Icons\INV_Misc_Note_01
 ## SavedVariables: ResourceCostOverlayDB

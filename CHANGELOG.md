@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.5
+
+The addon loads without registering an event the client does not have.
+
+### Fixed
+
+- The unknown action-bar state event is no longer registered on load.
+
 ## 1.2.4
 
 Settings text describes the buttons without naming another addon.
