@@ -57,5 +57,13 @@ read_globals = {
 	"STANDARD_TEXT_FONT",
 	"UIParent",
 	"UnitPowerMax",
+	"UnitPower",
+	"UnitDamage",
+	"UnitRangedDamage",
+	"UnitAttackPower",
+	"GetLocale",
+	"GetSpellBaseCooldown",
+	"TooltipDataProcessor",
+	"ItemRefTooltip",
 	"wipe",
 }

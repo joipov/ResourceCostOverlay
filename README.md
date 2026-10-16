@@ -1,6 +1,6 @@
-# Resource Cost on Icons
+# Spell Resources
 
-Small numbers for mana, rage, energy, and focus on spell buttons. Cooldown Manager bars are on by default. Action bars are off until you turn them on.
+Small numbers for mana, rage, energy, and focus on spell buttons, and healing or damage rates on spell tooltips. Cooldown Manager bars are on by default. Action bars are off until you turn them on.
 
 Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 
@@ -11,6 +11,7 @@ Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 - Mana, rage, energy, and focus. Other power types are ignored.
 - Mana costs show as a percent of maximum. Rage, energy, and focus show the raw cost. Each resource has its own setting.
 - Optional tint by resource (blue mana, red rage, orange focus, yellow energy).
+- Spell tooltips show damage, healing, or absorb per point of resource, and healing or damage per second for spells that can be cast again immediately. English descriptions. Both lines are on by default.
 - Minimap launcher via LibDBIcon when present, otherwise a built-in button. On by default. Addon compartment and `/rco` open settings.
 
 ## Commands
@@ -25,6 +26,7 @@ Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 | `/rco toggle` | Enable or disable the overlay |
 | `/rco debug` | Print target discovery |
 | `/rco mouse` | Print the spell under the cursor, with its raw cost and its trained-rank cost |
+| `/rco spell` | Print the last spell tooltip that was read |
 | `/rco help` | List commands |
 
 ## Files
@@ -35,6 +37,8 @@ Loaded in TOC order; modules communicate only through the shared `ns` table.
 | --- | --- |
 | `Database.lua` | SavedVariables defaults, migrations, validation |
 | `Core.lua` | Spell cost, action-bar rank, trained rank for Cooldown Manager, overlay text |
+| `Efficiency.lua` | Damage, healing, and absorb parsed from an English spell description |
+| `Tooltip.lua` | Cost and cast lines on spell tooltips |
 | `Targets.lua` | Cooldown Manager and action buttons to label |
 | `MinimapButton.lua` | LibDBIcon launcher or built-in button, addon compartment |
 | `Options.lua` | Settings panel, slash commands |

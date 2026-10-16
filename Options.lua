@@ -24,7 +24,7 @@ function _G.ResourceCostOverlay_OnAddonCompartmentEnter(_, owner)
 		return
 	end
 	GameTooltip:SetOwner(owner or UIParent, "ANCHOR_LEFT")
-	GameTooltip:AddLine("Resource Cost on Icons")
+	GameTooltip:AddLine("Spell Resources")
 	GameTooltip:AddLine("Click for settings.", 1, 1, 1)
 	GameTooltip:Show()
 end
@@ -197,7 +197,7 @@ function ns.InitOptions()
 	end
 
 	local ok = pcall(function()
-		local category = Settings.RegisterVerticalLayoutCategory("Resource Cost on Icons")
+		local category = Settings.RegisterVerticalLayoutCategory("Spell Resources")
 		ns.settingsCategory = category
 		local defaults = ns.defaults or {}
 
@@ -207,9 +207,9 @@ function ns.InitOptions()
 			category,
 			"ENABLED",
 			"enabled",
-			"Enable Resource Cost on Icons",
+			"Enable Spell Resources",
 			defaults.enabled ~= false,
-			"Shows resource costs on ability icons."
+			"Shows resource costs on ability icons, and rates on spell tooltips."
 		)
 
 		local minimapCheckbox = AddCheckbox(
@@ -292,6 +292,26 @@ function ns.InitOptions()
 			"Focus as % of max",
 			defaults.percentFocus == true,
 			percentTip
+		)
+
+		AddHeader(category, "Tooltips")
+
+		local efficiency = AddCheckbox(
+			category,
+			"SHOW_EFFICIENCY",
+			"showEfficiency",
+			"Resource efficiency",
+			defaults.showEfficiency ~= false,
+			"Damage, healing, or absorb per point of mana, rage, energy, or focus, on the cost line. English spell descriptions."
+		)
+
+		local throughput = AddCheckbox(
+			category,
+			"SHOW_THROUGHPUT",
+			"showThroughput",
+			"Healing and damage per second",
+			defaults.showThroughput ~= false,
+			"On the cast line, for spells that can be cast again immediately. English spell descriptions."
 		)
 
 		AddHeader(category, "Placement")
@@ -384,6 +404,8 @@ function ns.InitOptions()
 		Parent(percentRage)
 		Parent(percentEnergy)
 		Parent(percentFocus)
+		Parent(efficiency)
+		Parent(throughput)
 		Parent(numberPosition)
 		Parent(offsetX)
 		Parent(offsetY)
@@ -506,8 +528,33 @@ _G.SlashCmdList.RCO = function(msg)
 		ns.Print("mouse: no spell found under cursor (hover a CDM or action button).")
 		return
 	end
+	if msg == "spell" then
+		local last = ns.lastSpellTooltip
+		if not last then
+			ns.Print("Hover a spell tooltip first.")
+			return
+		end
+		ns.Print(string.format("%s (%s)", tostring(last.name), tostring(last.id)))
+		if last.resource then
+			ns.Print("cost: " .. tostring(last.cost) .. " " .. tostring(last.resource))
+		end
+		local cast = last.cast
+		if cast then
+			ns.Print(string.format(
+				"cast: %s, %s sec, cooldown %s",
+				tostring(cast.kind),
+				tostring(cast.seconds),
+				tostring(cast.cooldown)
+			))
+		end
+		local lines = last.lines or {}
+		for i = 1, #lines do
+			ns.Print(string.format("%d: %s", i, lines[i]))
+		end
+		return
+	end
 	if msg == "help" then
-		ns.Print("/rco: settings, bars, percent [mana, rage, energy, focus], minimap, toggle, debug, mouse")
+		ns.Print("/rco: settings, bars, percent [mana, rage, energy, focus], minimap, toggle, debug, mouse, spell")
 		return
 	end
 	ns.OpenSettings()

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.0
+
+Spell tooltips show what a spell returns for its cost, and the healing or damage per second of casting it again immediately. The player-facing name is Spell Resources.
+
+### Added
+
+- The cost line shows damage, healing, or absorb per point of mana, rage, energy, or focus.
+- The cast line shows healing per second and damage per second for spells without a cooldown.
+- Settings turn each of those lines on or off.
+- `/rco spell` prints the last spell tooltip that was read.
+
+### Changed
+
+- The addon title is Spell Resources. The folder, saved settings, and `/rco` are unchanged.
+
 ## 1.2.5
 
 The addon loads without registering an event the client does not have.

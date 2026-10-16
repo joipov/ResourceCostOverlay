@@ -5,7 +5,7 @@ local ADDON_NAME, ns = ...
 -- button collectors look for. Both read and write
 -- db.minimapIcon.
 
-local TITLE = "Resource Cost on Icons"
+local TITLE = "Spell Resources"
 local ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local CLICK_TEXT = "Click for settings."
 local DRAG_TEXT = "Drag to move."

@@ -1,8 +1,10 @@
-# Resource Cost on Icons
+# Spell Resources
 
 For World of Warcraft: Forever (Classic Plus).
 
 **The mana, rage, energy, or focus a spell costs, written on the button.** Cooldown Manager spell bars and buff bars show it. Action bars stay clean unless you turn them on.
+
+Spell tooltips also show damage, healing, or absorb per point of that resource, and the healing or damage per second of casting the spell again immediately.
 
 A lower rank on an action bar shows that rank's cost. A Cooldown Manager icon shows the rank you have trained.
 

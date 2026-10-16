@@ -1,5 +1,5 @@
 --[[
-  Resource Cost Overlay — simple rage/energy/mana cost numbers on Cooldown
+  Spell Resources — rage, energy, focus, and mana cost numbers on Cooldown
   Manager spell bars, buff bars, and optionally action bars.
 
   An action button shows the rank placed on it. A Cooldown Manager icon
@@ -53,7 +53,7 @@ local refreshQueued = false
 local layoutDirty = true
 
 local function Print(msg)
-	print("|cff8b5cf6Joipov|r Resource Cost on Icons: " .. tostring(msg or ""))
+	print("|cff8b5cf6Joipov|r Spell Resources: " .. tostring(msg or ""))
 end
 
 ns.Print = Print
@@ -72,7 +72,7 @@ end
 
 -- Login line. Name and version come from the TOC, so they never drift.
 function ns.Welcome()
-	local title = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Title") or "Resource Cost on Icons"
+	local title = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Title") or "Spell Resources"
 	local version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version") or "?"
 	print(string.format("|cff8b5cf6Joipov|r %s (|cff22d3eev%s|r). Type |cffffffff/rco|r to open settings.", title, version))
 end
@@ -352,7 +352,7 @@ local function CurrentRankSpellID(spellID)
 	return nil
 end
 
-local function ReadCostEntry(entry)
+local function ReadCostEntry(entry, allowPercent)
 	if not CanIndex(entry) then
 		return nil
 	end
@@ -376,14 +376,16 @@ local function ReadCostEntry(entry)
 
 	local costPercent = ReadableNumber(entry.costPercent) or 0
 	local costPerSec = ReadableNumber(entry.costPerSec) or 0
-	if costPercent ~= 0 or costPerSec ~= 0 then
+	-- A per-second cost has no single cast total. Icon text stays hidden for
+	-- percent costs; tooltips can use the resolved amount.
+	if costPerSec ~= 0 or (costPercent ~= 0 and not allowPercent) then
 		return nil
 	end
 
-	return amount, powerType
+	return amount, powerType, costPercent ~= 0
 end
 
-local function DirectSpellCost(spellID)
+local function DirectSpellCost(spellID, allowPercent)
 	local getCosts = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
 	if not getCosts then
 		return nil
@@ -394,22 +396,25 @@ local function DirectSpellCost(spellID)
 	end
 	-- Prefer an entry whose required aura is currently met; otherwise still
 	-- use a flat cost so stance abilities (Shield Block, Disarm) show.
-	local fallbackAmount, fallbackType
+	local fallbackAmount, fallbackType, fallbackPercent
 	for i = 1, #costs do
-		local amount, powerType = ReadCostEntry(costs[i])
+		local amount, powerType, isPercent = ReadCostEntry(costs[i], allowPercent)
 		if amount then
 			local entry = costs[i]
 			local requiredAuraID = ReadableNumber(entry.requiredAuraID)
 			if requiredAuraID and requiredAuraID > 0 and entry.hasRequiredAura == false then
 				fallbackAmount = fallbackAmount or amount
 				fallbackType = fallbackType or powerType
+				if fallbackPercent == nil then
+					fallbackPercent = isPercent
+				end
 			else
-				return amount, powerType
+				return amount, powerType, isPercent
 			end
 		end
 	end
 	if fallbackAmount then
-		return fallbackAmount, fallbackType
+		return fallbackAmount, fallbackType, fallbackPercent
 	end
 	return nil
 end
@@ -504,6 +509,35 @@ function ns.GetSpellResourceCost(spellID, exact)
 		return DirectSpellCost(book)
 	end
 	return nil
+end
+
+--- Absolute cost of this spell id for a tooltip. Percent-of-base costs are
+--- included once the client has resolved them. A flat cost is not upgraded
+--- to the trained rank; if the client returns that rank for every id, the
+--- spell record's base cost is used instead.
+function ns.ResolvedSpellCost(spellID)
+	spellID = ReadableNumber(spellID)
+	if not spellID or spellID <= 0 then
+		return nil
+	end
+	local amount, powerType, isPercent = DirectSpellCost(spellID, true)
+	if not amount then
+		return nil
+	end
+	if isPercent then
+		return amount, powerType
+	end
+	local current = CurrentRankSpellID(spellID)
+	if current then
+		local trainedAmount = DirectSpellCost(current, true)
+		if trainedAmount and amount == trainedAmount then
+			local baseAmount, baseType = BaseSpellCost(spellID)
+			if baseAmount and baseAmount ~= amount then
+				return baseAmount, powerType or baseType
+			end
+		end
+	end
+	return amount, powerType
 end
 
 --- Full cost display only.
