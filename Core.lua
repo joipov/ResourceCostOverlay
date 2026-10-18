@@ -420,8 +420,7 @@ local function DirectSpellCost(spellID, allowPercent)
 end
 
 --- Base mana/power on the spell record. Forever puts this on GetSpellInfo.
---- GetSpellPowerCost is the cast cost, including talents. Use the base only
---- when that API hands back the trained rank for a lower rank id.
+--- Used when GetSpellPowerCost is empty or collapses older ranks to the trained cost.
 local function BaseSpellCost(spellID)
 	if not (C_Spell and C_Spell.GetSpellInfo) then
 		return nil
@@ -435,7 +434,9 @@ local function BaseSpellCost(spellID)
 		return nil
 	end
 	local powerType = ReadableNumber(info.powerType)
-	if powerType and not TRACKED_POWER[powerType] then
+	if not powerType then
+		powerType = POWER_MANA
+	elseif not TRACKED_POWER[powerType] then
 		return nil
 	end
 	return cost, powerType
@@ -489,7 +490,7 @@ function ns.GetSpellResourceCost(spellID, exact)
 		local current = CurrentRankSpellID(spellID)
 		if current then
 			local trainedAmount = DirectSpellCost(current)
-			-- The client resolved every rank id to the trained spell.
+			-- Client often returns the trained cost for every rank id.
 			if amount and trainedAmount and amount == trainedAmount then
 				local baseAmount, baseType = BaseSpellCost(spellID)
 				if baseAmount and baseAmount ~= amount then
@@ -502,7 +503,8 @@ function ns.GetSpellResourceCost(spellID, exact)
 		return amount, powerType
 	end
 	if exact then
-		return nil
+		-- Older ranks often have no GetSpellPowerCost after higher ranks are learned.
+		return BaseSpellCost(spellID)
 	end
 	local book = SpellbookCastID(spellID)
 	if book then
@@ -522,7 +524,7 @@ function ns.ResolvedSpellCost(spellID)
 	end
 	local amount, powerType, isPercent = DirectSpellCost(spellID, true)
 	if not amount then
-		return nil
+		return BaseSpellCost(spellID)
 	end
 	if isPercent then
 		return amount, powerType
@@ -785,6 +787,23 @@ function ns.ResolveCdmSpellID(child)
 	return picked
 end
 
+--- Classic returns name, rank, spellID; some clients return a numeric id first.
+function ns.ResolveMacroSpellID(macroIndex)
+	macroIndex = ReadableNumber(macroIndex)
+	if not macroIndex or macroIndex <= 0 or not GetMacroSpell then
+		return nil
+	end
+	local ok, first, _, third = pcall(GetMacroSpell, macroIndex)
+	if not ok then
+		return nil
+	end
+	local sid = ReadableNumber(first) or ReadableNumber(third)
+	if sid and sid > 0 then
+		return sid
+	end
+	return nil
+end
+
 function ns.ResolveActionSpellID(button)
 	if not button then
 		return nil
@@ -812,17 +831,15 @@ function ns.ResolveActionSpellID(button)
 		return id
 	end
 	if actionType == "macro" then
-		if GetMacroSpell then
-			local sid = ReadableNumber(GetMacroSpell(id))
-			if sid and sid > 0 then
-				return sid
-			end
+		local sid = ns.ResolveMacroSpellID(id)
+		if sid and sid > 0 then
+			return sid
 		end
 		-- Named macros sometimes only resolve through the action slot helper.
 		if GetActionText then
 			local name = GetActionText(action)
 			if type(name) == "string" and name ~= "" and C_Spell and C_Spell.GetSpellIDForSpellIdentifier then
-				local sid = ReadableNumber(C_Spell.GetSpellIDForSpellIdentifier(name))
+				sid = ReadableNumber(C_Spell.GetSpellIDForSpellIdentifier(name))
 				if sid and sid > 0 then
 					return sid
 				end

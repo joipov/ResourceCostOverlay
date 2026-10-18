@@ -492,22 +492,11 @@ local function MacroSpell(slot)
 	if not GetActionInfo or not slot then
 		return false
 	end
-	local ok, actionType, id, subType = pcall(GetActionInfo, slot)
+	local ok, actionType, id = pcall(GetActionInfo, slot)
 	if not ok or actionType ~= "macro" then
 		return false
 	end
-	id = ReadableNumber(id)
-	if subType == "spell" and id then
-		return true, id
-	end
-	if GetMacroSpell and id then
-		local spellOk, first, _, third = pcall(GetMacroSpell, id)
-		if not spellOk then
-			return true, nil
-		end
-		return true, ReadableNumber(first) or ReadableNumber(third)
-	end
-	return true, nil
+	return true, ns.ResolveMacroSpellID(ReadableNumber(id))
 end
 
 local function Process(tooltip, spellID)
