@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.4.3
+
+Action-bar macros on custom bars now show the cost of the rank written in the macro, even when the client does not expose the macro body or spell by its macro id.
+
+### Fixed
+
+- A macro's first `/cast` name, including `(Rank N)`, is passed straight to `GetSpellPowerCost`. This is the rank the player actually casts.
+- Host action bars that put a spell id in `.action` or the `action` attribute now use the slot in the button name (`EABButton4` is slot 4), so `GetActionInfo` returns the real macro.
+- If the macro body is not available by id, the macro name on the action button is used to read the body.
+- If neither works, the action's own tooltip is read as a last resort.
+- `/rco mouse` now prints the action slot, macro id, body, `GetMacroSpell` result, and body-resolved spell.
+
+## 1.4.2
+
+Restores the action-bar values that 1.4.1 could hide.
+
+### Fixed
+
+- A macro without a rank uses the spell the client already resolved again. The macro body is only a last-resort fallback, so a button that worked before keeps working.
+- The macro-name fallback is back, restricted to a spell the player knows.
+- Tooltip cost reads are protected, so a failed tooltip call cannot stop the whole overlay refresh.
+- `/rco mouse` reads the spell already shown on a tracked button, and prints the macro body and `GetMacroSpell` result when nothing resolves.
+
+## 1.4.1
+
+Action-bar macros keep the cost of the rank they cast, including rank 1 and multi-word spell names.
+
+### Fixed
+
+- Costs the client reports with both a percent and a resolved amount are no longer discarded. This was why some spells, such as Lesser Heal, showed no number while others did.
+- A lower-rank spell on an action bar now reads that rank's cost from the spell tooltip when the client returns nothing from `GetSpellPowerCost`. This covers macros such as `/cast Renew(Rank 1)`.
+- An explicit-rank macro resolves from its first `/cast` line, so `(Rank 1)` macros no longer depend on the client's macro spell cache.
+- A macro without a rank keeps the spell the client already resolved. The macro body and then the macro name are only fallbacks, so a button that worked before keeps working.
+- The macro-name fallback only accepts a spell the player knows.
+
 ## 1.4.0
 
 Spell tooltip efficiency: ranked next-swing names, forgone rage, DoT-heavy DPS, and Shift-gated calculation notes.

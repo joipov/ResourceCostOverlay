@@ -540,34 +540,100 @@ _G.SlashCmdList.RCO = function(msg)
 		return
 	end
 	if msg == "mouse" or msg == "probe" then
-		local frame = GetMouseFoci()[1]
-		-- Walk up a few parents to find a button-like frame.
-		local node = frame
-		for _ = 1, 6 do
-			if not node then
-				break
+		local starts = {}
+		if GetMouseFoci then
+			local ok, foci = pcall(GetMouseFoci)
+			if ok and type(foci) == "table" then
+				for i = 1, #foci do
+					starts[#starts + 1] = foci[i]
+				end
 			end
-			local sid = ns.ResolveCdmSpellID(node) or ns.ResolveActionSpellID(node)
-			if sid then
-				local rawCost, rawType = ns.RawSpellResourceCost(sid)
-				local exactCost, exactType = ns.GetSpellResourceCost(sid, true)
-				local trainedCost, trainedType = ns.GetSpellResourceCost(sid)
-				local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid)
-				ns.Print(string.format(
-					"mouse: frame=%s sid=%s name=%s raw=%s exact=%s trained=%s powerType=%s",
-					tostring(node.GetName and node:GetName() or node),
-					tostring(sid),
-					tostring(name),
-					tostring(rawCost),
-					tostring(exactCost),
-					tostring(trainedCost),
-					tostring(exactType or rawType or trainedType)
-				))
-				return
-			end
-			node = node.GetParent and node:GetParent()
 		end
-		ns.Print("mouse: no spell found under cursor (hover a CDM or action button).")
+		if GetMouseFocus then
+			local ok, focus = pcall(GetMouseFocus)
+			if ok and focus then
+				starts[#starts + 1] = focus
+			end
+		end
+		-- Walk up the frame hierarchy. Action buttons and CDM icons have
+		-- several child layers, so a few parents are not always enough.
+		for s = 1, #starts do
+			local node = starts[s]
+			for _ = 1, 12 do
+				if not node then
+					break
+				end
+				local sid = ns.ButtonSpellID(node) or ns.ResolveCdmSpellID(node) or ns.ResolveActionSpellID(node)
+				if sid then
+					local rawCost, rawType = ns.RawSpellResourceCost(sid)
+					local exactCost, exactType = ns.GetSpellResourceCost(sid, true)
+					local trainedCost, trainedType = ns.GetSpellResourceCost(sid)
+					local tooltipCost, tooltipType = ns.TooltipSpellResourceCost(sid)
+					local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid)
+					local rank = C_Spell and C_Spell.GetSpellSubtext and C_Spell.GetSpellSubtext(sid)
+					ns.Print(string.format(
+						"mouse: frame=%s sid=%s name=%s rank=%s raw=%s exact=%s trained=%s tooltip=%s powerType=%s",
+						tostring(node.GetName and node:GetName() or node),
+						tostring(sid),
+						tostring(name),
+						tostring(rank),
+						tostring(rawCost),
+						tostring(exactCost),
+						tostring(trainedCost),
+						tostring(tooltipCost),
+						tostring(exactType or rawType or trainedType or tooltipType)
+					))
+					return
+				end
+				node = node.GetParent and node:GetParent()
+			end
+		end
+		-- Nothing resolved. If this is a macro, print what the client says it
+		-- contains so a failing macro can be diagnosed from chat.
+		for s = 1, #starts do
+			local node = starts[s]
+			for _ = 1, 12 do
+				if not node then
+					break
+				end
+				local action = ns.ActionSlot(node)
+				if action then
+					local ok, actionType, id = pcall(GetActionInfo, action)
+					if ok and actionType == "macro" then
+						local body, macroSpell, bodySpell
+						if GetMacroBody then
+							local bodyOk, value = pcall(GetMacroBody, id)
+							if bodyOk then
+								body = value
+							end
+						end
+						if GetMacroSpell then
+							local spellOk, value = pcall(GetMacroSpell, id)
+							if spellOk then
+								macroSpell = value
+							end
+						end
+						if ns.ResolveMacroBodySpellID then
+							local bodyOk, value = pcall(ns.ResolveMacroBodySpellID, id)
+							if bodyOk then
+								bodySpell = value
+							end
+						end
+						ns.Print(string.format(
+							"mouse: action=%s macro=%s body=%s spell=%s bodySpell=%s",
+							tostring(action),
+							tostring(id),
+							tostring(body),
+							tostring(macroSpell),
+							tostring(bodySpell)
+						))
+						return
+					end
+				end
+				node = node.GetParent and node:GetParent()
+			end
+		end
+		ns.Print("mouse: no spell found under cursor (hover a CDM icon or action button).")
 		return
 	end
 	if msg == "spell" then

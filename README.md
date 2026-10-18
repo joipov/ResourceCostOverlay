@@ -7,7 +7,7 @@ Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 ## Features
 
 - Cost text on Cooldown Manager spell bars and buff bars. Action bars are optional.
-- A lower rank on an action bar shows that rank's cost. A Cooldown Manager icon shows the rank you have trained.
+- A lower rank on an action bar — including a rank written in a macro — shows that rank's cost. A Cooldown Manager icon shows the rank you have trained.
 - Mana, rage, energy, and focus. Other power types are ignored.
 - Mana costs show as a percent of maximum. Rage, energy, and focus show the raw cost. Each resource has its own setting.
 - Optional tint by resource (blue mana, red rage, orange focus, yellow energy).
@@ -25,7 +25,7 @@ Target client: World of Warcraft **Forever** (`## Interface: 16001`).
 | `/rco minimap` | Toggle the minimap button |
 | `/rco toggle` | Enable or disable the overlay |
 | `/rco debug` | Print target discovery |
-| `/rco mouse` | Print the spell under the cursor, with its raw cost and its trained-rank cost |
+| `/rco mouse` | Print the spell under the cursor, with its rank, costs, and macro details when it cannot resolve |
 | `/rco spell` | Print the last spell tooltip that was read |
 | `/rco help` | List commands |
 
@@ -36,7 +36,8 @@ Loaded in TOC order; modules communicate only through the shared `ns` table.
 | File | Concern |
 | --- | --- |
 | `Database.lua` | SavedVariables defaults, migrations, validation |
-| `Core.lua` | Spell cost, action-bar rank, trained rank for Cooldown Manager, overlay text |
+| `SpellText.lua` | Rank suffix and first `/cast` token from macro text |
+| `Core.lua` | Spell cost, macro and action-bar rank, trained rank for Cooldown Manager, overlay text |
 | `Efficiency.lua` | Damage, healing, and absorb parsed from an English spell description |
 | `Tooltip.lua` | Cost and cast lines on spell tooltips |
 | `Targets.lua` | Cooldown Manager and action buttons to label |
@@ -76,4 +77,4 @@ powershell -File package.ps1
 Releases: push an annotated tag (`git tag -a 1.0.0 -m "1.0.0"`). The
 `Package and release` workflow runs BigWigsMods/packager, which reads the game
 version from the TOC and the manual changelog from `CHANGELOG.md`.
-`CODE_AUDIT.md` is the audit note and is not shipped.
+`CODE_AUDIT_*.md` is the audit note and is not shipped.

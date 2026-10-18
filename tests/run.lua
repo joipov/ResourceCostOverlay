@@ -2,8 +2,8 @@
 --   luajit tests/run.lua
 --   lua5.1 tests/run.lua
 -- Files that create frames (Core.lua, Targets.lua, Options.lua,
--- MinimapButton.lua, Tooltip.lua) are not loaded. Database.lua and
--- Efficiency.lua are plain Lua.
+-- MinimapButton.lua, Tooltip.lua) are not loaded. Database.lua,
+-- SpellText.lua, and Efficiency.lua are plain Lua.
 
 local root = (arg and arg[0] or "tests/run.lua"):match("^(.*)[/\\]tests[/\\]") or "."
 
@@ -15,6 +15,7 @@ local function load(file)
 end
 
 load("Database.lua")
+load("SpellText.lua")
 load("Efficiency.lua")
 
 local passed, failed = 0, 0
@@ -236,6 +237,29 @@ test("a cooldown suppresses the per second rate", function()
 	local cast = { kind = "instant", seconds = 0, cooldown = 8 }
 	eq(ns.ThroughputRates(lines, cast, "Strike", nil, "focus", nil), nil, "no rate")
 	near(ratioKind(ns.ResourceRatios(lines, 40, "Strike", nil, nil), "damage").ratio, 7.5, "still a ratio")
+end)
+
+test("an explicit rank splits from the spell name", function()
+	local name, rank = ns.SplitRankSuffix("Renew(Rank 1)")
+	eq(name, "Renew", "name")
+	eq(rank, 1, "rank")
+	name, rank = ns.SplitRankSuffix("Lesser Heal")
+	eq(name, "Lesser Heal", "unranked name")
+	eq(rank, nil, "no rank")
+	name, rank = ns.SplitRankSuffix("Lesser Heal(Rank 3)")
+	eq(name, "Lesser Heal", "two-word name")
+	eq(rank, 3, "two-word rank")
+end)
+
+test("a macro body yields its first cast spell", function()
+	local body = "#showtooltip Renew\n/cast [@mouseover,help,nodead][help,nodead][@player] Renew(Rank 1)"
+	eq(ns.FirstCastToken(body), "Renew(Rank 1)", "macro token")
+	eq(ns.FirstCastToken("#showtooltip Lesser Heal\n/cast Lesser Heal"), "Lesser Heal", "two-word spell")
+	eq(ns.FirstCastToken("/cast [mod:shift] Renew(Rank 1); Renew"), "Renew(Rank 1)", "first branch")
+	eq(ns.FirstCastToken("/castsequence reset=target Renew, Heal"), "Renew", "castsequence")
+	eq(ns.FirstCastToken("/cast !Shoot"), "Shoot", "auto repeat")
+	eq(ns.FirstCastToken("#showtooltip\n/use 13"), "13", "item use")
+	eq(ns.FirstCastToken("/say hello"), nil, "no cast")
 end)
 
 test("LoadDB turns the minimap button on and moves it off the 220 angle", function()

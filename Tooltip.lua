@@ -127,6 +127,19 @@ local function MatchCost(text)
 	return nil
 end
 
+--- Resource and amount from one tooltip line. Core.lua uses this to read a
+--- rank's cost from the spell's own tooltip.
+function ns.MatchCostText(text)
+	if type(text) ~= "string" then
+		return nil
+	end
+	local resource, amount = MatchCost(ns.NormalizeSpellText(text))
+	if not resource then
+		return nil
+	end
+	return amount, resource.power
+end
+
 local function MatchCast(text)
 	local seconds = text:match("^(%d+%.?%d*) sec cast%s*$")
 	if not seconds then

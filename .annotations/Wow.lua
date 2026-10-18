@@ -19,9 +19,3 @@ canaccesstable = canaccesstable
 -- an "undefined-field". Type `_G` here so those lookups resolve.
 ---@type table<string, any>
 _G = _G
-
--- Forever exposes the base cost on the spell record. The retail SpellInfo
--- table does not carry these fields, so declare them for the one call site.
----@class SpellInfo
----@field cost number?
----@field powerType number?

@@ -2,9 +2,9 @@
   Spell Resources — rage, energy, focus, and mana cost numbers on Cooldown
   Manager spell bars, buff bars, and optionally action bars.
 
-  An action button shows the rank placed on it. A Cooldown Manager icon
-  shows the rank the player has trained, because those viewers often store
-  rank 1.
+  An action button shows the rank placed on it, including the rank written
+  in a macro's first /cast. A Cooldown Manager icon shows the rank the
+  player has trained, because those viewers often store rank 1.
 ]]
 
 local ADDON_NAME, ns = ...
@@ -14,6 +14,7 @@ local canaccessvalue = canaccessvalue
 local issecrettable = issecrettable
 local canaccesstable = canaccesstable
 local C_Timer = C_Timer
+local C_TooltipInfo = C_TooltipInfo
 
 local POWER_MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
 local POWER_RAGE = Enum and Enum.PowerType and Enum.PowerType.Rage or 1
@@ -46,6 +47,7 @@ local REFRESH_THROTTLE = 0.08
 
 local driver = CreateFrame("Frame")
 local overlays = {} -- [button] = FontString
+local overlaySpellIDs = {} -- [button] = spellID last shown
 local trackedButtons = {}
 local cooldownSpellCache = {} -- [cooldownID] = spellID
 local refreshSerial = 0
@@ -142,7 +144,21 @@ end
 --- often store rank 1, and this map upgrades those. An action button keeps
 --- the rank placed on it.
 local knownByName = {}
+local knownMaxRankByName = {}
+local knownRankByName = {}
+local knownMaxRankByLowerName = {}
+local knownRankByLowerName = {}
 local knownRanksReady = false
+
+-- Rank costs read from the spell tooltip. The client's GetSpellPowerCost
+-- returns nothing for older ranks once a higher rank is trained.
+local rankCostCache = {}
+
+-- Action-slot costs read from the action's own tooltip. This is the only
+-- reliable path for macros on custom bars, whose macro body and spell id
+-- are not exposed by GetMacroBody/GetMacroSpell.
+local actionCostCache = {}
+local actionScanner
 
 local function SpellSubtext(spellID)
 	if not (C_Spell and C_Spell.GetSpellSubtext) then
@@ -207,8 +223,39 @@ local function PlayerKnowsSpell(spellID)
 	return SpellKnown(IsPlayerSpell(spellID))
 end
 
+local function AddKnownRank(spellID)
+	spellID = ReadableNumber(spellID)
+	if not spellID or spellID <= 0 then
+		return
+	end
+	local name = ReadableString(C_Spell.GetSpellName(spellID))
+	if not name then
+		return
+	end
+	local rank = RankNumber(spellID)
+	if rank then
+		local ranks = knownRankByName[name]
+		if not ranks then
+			ranks = {}
+			knownRankByName[name] = ranks
+		end
+		ranks[rank] = spellID
+		local best = knownMaxRankByName[name]
+		if not best or (RankNumber(best) or 0) < rank then
+			knownMaxRankByName[name] = spellID
+		end
+	else
+		knownMaxRankByName[name] = knownMaxRankByName[name] or spellID
+	end
+end
+
 local function RebuildKnownRanks()
 	wipe(knownByName)
+	wipe(knownMaxRankByName)
+	wipe(knownRankByName)
+	wipe(knownMaxRankByLowerName)
+	wipe(knownRankByLowerName)
+	wipe(rankCostCache)
 	knownRanksReady = false
 	if not (C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo and C_SpellBook.GetSpellBookItemInfo) then
 		return
@@ -244,23 +291,26 @@ local function RebuildKnownRanks()
 					if castID and castID <= 0 then
 						castID = nil
 					end
-					local id = actionID or castID
-					if actionID and castID and actionID ~= castID then
-						local actionRank = RankNumber(actionID)
-						local castRank = RankNumber(castID)
-						if actionRank and castRank and castRank > actionRank then
-							id = castID
-						end
-					end
-					if id then
-						local name = C_Spell.GetSpellName(id)
-						if type(name) == "string" and name ~= "" and not SecretBlocked(name) then
-							knownByName[name] = id
-						end
-					end
+					-- actionID is the rank the client puts on an action button;
+					-- spellID is the rank in this slot. Keep both so a macro
+					-- that names a rank can find it.
+					AddKnownRank(actionID)
+					AddKnownRank(castID)
 				end
 			end
 		end
+	end
+	for name, id in pairs(knownMaxRankByName) do
+		knownByName[name] = id
+		knownMaxRankByLowerName[string.lower(name)] = id
+	end
+	for name, ranks in pairs(knownRankByName) do
+		knownRankByLowerName[string.lower(name)] = ranks
+	end
+	-- The spellbook can be empty for the first frames after login. Leave the
+	-- map unready so the next refresh builds it again.
+	if next(knownByName) == nil then
+		return
 	end
 	knownRanksReady = true
 end
@@ -273,6 +323,24 @@ end
 
 function ns.InvalidateKnownRanks()
 	knownRanksReady = false
+	wipe(rankCostCache)
+	wipe(actionCostCache)
+end
+
+--- Spellbook id for a name and an optional rank. Used by macro text.
+local function KnownSpellByName(name, rank)
+	EnsureKnownRanks()
+	local ranks = knownRankByName[name]
+	local max = knownMaxRankByName[name]
+	if not ranks and not max then
+		local lower = string.lower(name)
+		ranks = knownRankByLowerName[lower]
+		max = knownMaxRankByLowerName[lower]
+	end
+	if rank then
+		return ranks and ranks[rank] or nil
+	end
+	return max
 end
 
 --- Rank the player has trained, when `spellID` is an older rank of that spell.
@@ -352,7 +420,7 @@ local function CurrentRankSpellID(spellID)
 	return nil
 end
 
-local function ReadCostEntry(entry, allowPercent)
+local function ReadCostEntry(entry)
 	if not CanIndex(entry) then
 		return nil
 	end
@@ -376,21 +444,17 @@ local function ReadCostEntry(entry, allowPercent)
 
 	local costPercent = ReadableNumber(entry.costPercent) or 0
 	local costPerSec = ReadableNumber(entry.costPerSec) or 0
-	-- A per-second cost has no single cast total. Icon text stays hidden for
-	-- percent costs; tooltips can use the resolved amount.
-	if costPerSec ~= 0 or (costPercent ~= 0 and not allowPercent) then
+	-- A per-second cost has no single cast total. A percent cost still carries
+	-- the client's resolved flat amount, so it is a normal cost here.
+	if costPerSec ~= 0 then
 		return nil
 	end
 
 	return amount, powerType, costPercent ~= 0
 end
 
-local function DirectSpellCost(spellID, allowPercent)
-	local getCosts = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
-	if not getCosts then
-		return nil
-	end
-	local costs = getCosts(spellID)
+--- Best tracked cost in a SpellPowerCostInfo list.
+local function BestCostEntry(costs)
 	if not CanIndex(costs) then
 		return nil
 	end
@@ -398,7 +462,7 @@ local function DirectSpellCost(spellID, allowPercent)
 	-- use a flat cost so stance abilities (Shield Block, Disarm) show.
 	local fallbackAmount, fallbackType, fallbackPercent
 	for i = 1, #costs do
-		local amount, powerType, isPercent = ReadCostEntry(costs[i], allowPercent)
+		local amount, powerType, isPercent = ReadCostEntry(costs[i])
 		if amount then
 			local entry = costs[i]
 			local requiredAuraID = ReadableNumber(entry.requiredAuraID)
@@ -419,27 +483,100 @@ local function DirectSpellCost(spellID, allowPercent)
 	return nil
 end
 
---- Base mana/power on the spell record. Forever puts this on GetSpellInfo.
---- Used when GetSpellPowerCost is empty or collapses older ranks to the trained cost.
-local function BaseSpellCost(spellID)
-	if not (C_Spell and C_Spell.GetSpellInfo) then
+local function DirectSpellCost(spellID)
+	local getCosts = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
+	if not getCosts then
 		return nil
 	end
-	local info = C_Spell.GetSpellInfo(spellID)
-	if not CanIndex(info) then
+	return BestCostEntry(getCosts(spellID))
+end
+
+local function TooltipForSpell(spellID)
+	if not (C_TooltipInfo and C_TooltipInfo.GetSpellByID) then
 		return nil
 	end
-	local cost = ReadableNumber(info.cost)
-	if not cost or cost <= 0 then
+	-- dontOverride keeps a lower rank from being replaced by the trained rank.
+	-- This is a fallback: a failure here must not stop the overlay refresh.
+	local ok, data = pcall(C_TooltipInfo.GetSpellByID, spellID, false, true, true)
+	if ok and CanIndex(data) then
+		return data
+	end
+	if C_Spell and C_Spell.GetSpellLink and C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+		local link = ReadableString(C_Spell.GetSpellLink(spellID))
+		if link then
+			local linkOk, linkData = pcall(C_TooltipInfo.GetHyperlink, link)
+			if linkOk and CanIndex(linkData) then
+				return linkData
+			end
+		end
+	end
+	return nil
+end
+
+--- The cost on the spell's own tooltip. This is the rank's cost even when
+--- GetSpellPowerCost returns nothing for an older rank.
+local function TooltipSpellCost(spellID)
+	if not ns.MatchCostText then
 		return nil
 	end
-	local powerType = ReadableNumber(info.powerType)
-	if not powerType then
-		powerType = POWER_MANA
-	elseif not TRACKED_POWER[powerType] then
+	local data = TooltipForSpell(spellID)
+	if not data then
 		return nil
 	end
-	return cost, powerType
+	local lines = data.lines
+	if type(lines) ~= "table" or not CanIndex(lines) then
+		return nil
+	end
+	-- The cost is near the title. Keep the scan short so a description line
+	-- that starts with a number and a resource word is not mistaken for it.
+	local count = #lines
+	if count > 10 then
+		count = 10
+	end
+	for i = 1, count do
+		local line = lines[i]
+		if CanIndex(line) then
+			local text = ReadableString(line.leftText)
+			if text then
+				local amount, powerType = ns.MatchCostText(text)
+				if powerType then
+					-- A percent-of-base line has no flat amount. Stop here so
+					-- a later description line is not read as the cost.
+					if amount and amount > 0 then
+						return amount, powerType
+					end
+					return nil
+				end
+			end
+		end
+	end
+	return nil
+end
+
+--- Tooltip cost, cached until the spellbook or a setting changes.
+local function RankCost(spellID)
+	if not ns.MatchCostText then
+		return nil
+	end
+	local cached = rankCostCache[spellID]
+	if cached then
+		return cached[1], cached[2]
+	end
+	local amount, powerType = TooltipSpellCost(spellID)
+	if amount then
+		rankCostCache[spellID] = { amount, powerType }
+		return amount, powerType
+	end
+	return nil
+end
+
+--- A spell's exact rank cost for the mouse probe and diagnostics.
+function ns.TooltipSpellResourceCost(spellID)
+	spellID = ReadableNumber(spellID)
+	if not spellID or spellID <= 0 then
+		return nil
+	end
+	return RankCost(spellID)
 end
 
 --- Spellbook cast of the same name, when `spellID` itself has no flat cost
@@ -481,65 +618,117 @@ function ns.GetSpellResourceCost(spellID, exact)
 	if not exact then
 		local current = CurrentRankSpellID(spellID)
 		if current then
-			return DirectSpellCost(current)
+			return DirectSpellCost(current) or RankCost(current)
 		end
+		local amount, powerType = DirectSpellCost(spellID)
+		if amount then
+			return amount, powerType
+		end
+		amount, powerType = RankCost(spellID)
+		if amount then
+			return amount, powerType
+		end
+		local book = SpellbookCastID(spellID)
+		if book then
+			return DirectSpellCost(book) or RankCost(book)
+		end
+		return nil
 	end
 
+	-- Keep the client's effective cost first. It is what worked before and
+	-- includes temporary discounts. The tooltip is only the fallback for
+	-- ranks the client has no power-cost data for.
 	local amount, powerType = DirectSpellCost(spellID)
-	if exact then
-		local current = CurrentRankSpellID(spellID)
-		if current then
-			local trainedAmount = DirectSpellCost(current)
-			-- Client often returns the trained cost for every rank id.
-			if amount and trainedAmount and amount == trainedAmount then
-				local baseAmount, baseType = BaseSpellCost(spellID)
-				if baseAmount and baseAmount ~= amount then
-					return baseAmount, powerType or baseType
-				end
-			end
-		end
-	end
 	if amount then
 		return amount, powerType
 	end
-	if exact then
-		-- Older ranks often have no GetSpellPowerCost after higher ranks are learned.
-		return BaseSpellCost(spellID)
-	end
-	local book = SpellbookCastID(spellID)
-	if book then
-		return DirectSpellCost(book)
-	end
-	return nil
+	return RankCost(spellID)
 end
 
 --- Absolute cost of this spell id for a tooltip. Percent-of-base costs are
---- included once the client has resolved them. A flat cost is not upgraded
---- to the trained rank; if the client returns that rank for every id, the
---- spell record's base cost is used instead.
+--- included once the client has resolved them.
 function ns.ResolvedSpellCost(spellID)
 	spellID = ReadableNumber(spellID)
 	if not spellID or spellID <= 0 then
 		return nil
 	end
-	local amount, powerType, isPercent = DirectSpellCost(spellID, true)
-	if not amount then
-		return BaseSpellCost(spellID)
-	end
-	if isPercent then
+	local amount, powerType = DirectSpellCost(spellID)
+	if amount then
 		return amount, powerType
 	end
-	local current = CurrentRankSpellID(spellID)
-	if current then
-		local trainedAmount = DirectSpellCost(current, true)
-		if trainedAmount and amount == trainedAmount then
-			local baseAmount, baseType = BaseSpellCost(spellID)
-			if baseAmount and baseAmount ~= amount then
-				return baseAmount, powerType or baseType
+	return RankCost(spellID)
+end
+
+local function DisplayCost(cost, powerType)
+	local db = DB()
+	if not db or not db.enabled then
+		return nil
+	end
+	local percentKey = PERCENT_KEY[powerType]
+	if percentKey and db[percentKey] then
+		local maxPower = ReadableNumber(UnitPowerMax("player", powerType))
+		if maxPower and maxPower > 0 then
+			local pct = math.floor((cost / maxPower) * 100 + 0.5)
+			return tostring(pct) .. "%", powerType
+		end
+	end
+	return tostring(math.floor(cost + 0.5)), powerType
+end
+
+local function ActionTooltipCost(action)
+	local cached = actionCostCache[action]
+	if cached then
+		return cached[1], cached[2]
+	end
+	if not (GameTooltip and GameTooltip.SetAction and ns.MatchCostText) then
+		return nil
+	end
+	if not actionScanner then
+		actionScanner = CreateFrame("GameTooltip", "ResourceCostOverlayActionScanner", nil, "GameTooltipTemplate")
+		actionScanner:SetOwner(WorldFrame, "ANCHOR_NONE")
+	end
+	local ok = pcall(actionScanner.SetAction, actionScanner, action)
+	if not ok then
+		actionScanner:Hide()
+		return nil
+	end
+	local count = actionScanner:NumLines()
+	if SecretBlocked(count) or type(count) ~= "number" then
+		actionScanner:Hide()
+		return nil
+	end
+	local frameName = actionScanner:GetName()
+	for i = 1, count do
+		local line = _G[frameName .. "TextLeft" .. i]
+		local text = ReadableString(line and line:GetText())
+		if text then
+			local amount, powerType = ns.MatchCostText(text)
+			if powerType then
+				if amount and amount > 0 then
+					actionCostCache[action] = { amount, powerType }
+					actionScanner:Hide()
+					return amount, powerType
+				end
+				break
 			end
 		end
 	end
-	return amount, powerType
+	actionScanner:Hide()
+	return nil
+end
+
+--- Cost text for an action slot, read from the tooltip the client shows
+--- for that slot. Works for macros and explicit spell ranks.
+function ns.ComputeActionDisplay(action)
+	local db = DB()
+	if not db or not db.enabled or not action or action <= 0 then
+		return nil
+	end
+	local cost, powerType = ActionTooltipCost(action)
+	if not cost or not powerType then
+		return nil
+	end
+	return DisplayCost(cost, powerType)
 end
 
 --- Full cost display only.
@@ -554,16 +743,7 @@ function ns.ComputeDisplay(spellID, exact)
 		return nil
 	end
 
-	local percentKey = PERCENT_KEY[powerType]
-	if percentKey and db[percentKey] then
-		local maxPower = ReadableNumber(UnitPowerMax("player", powerType))
-		if maxPower and maxPower > 0 then
-			local pct = math.floor((cost / maxPower) * 100 + 0.5)
-			return tostring(pct) .. "%", powerType
-		end
-	end
-
-	return tostring(math.floor(cost + 0.5)), powerType
+	return DisplayCost(cost, powerType)
 end
 
 local function ApplyTextStyle(fs, powerType)
@@ -787,28 +967,249 @@ function ns.ResolveCdmSpellID(child)
 	return picked
 end
 
---- Classic returns name, rank, spellID; some clients return a numeric id first.
-function ns.ResolveMacroSpellID(macroIndex)
-	macroIndex = ReadableNumber(macroIndex)
-	if not macroIndex or macroIndex <= 0 or not GetMacroSpell then
+local function ReadMacroBody(identifier)
+	if GetMacroBody then
+		local ok, body = pcall(GetMacroBody, identifier)
+		if ok then
+			body = ReadableString(body)
+			if body and body ~= "" then
+				return body
+			end
+		end
+	end
+	if GetMacroInfo then
+		local ok, _, _, body = pcall(GetMacroInfo, identifier)
+		if ok then
+			body = ReadableString(body)
+			if body and body ~= "" then
+				return body
+			end
+		end
+	end
+	return nil
+end
+
+local function MacroBody(macroIndex)
+	return ReadMacroBody(macroIndex)
+end
+
+local function MacroSpell(identifier)
+	if not GetMacroSpell then
 		return nil
 	end
-	local ok, first, _, third = pcall(GetMacroSpell, macroIndex)
+	local ok, first, second, third = pcall(GetMacroSpell, identifier)
 	if not ok then
 		return nil
 	end
-	local sid = ReadableNumber(first) or ReadableNumber(third)
+	local sid = ReadableNumber(first) or ReadableNumber(second) or ReadableNumber(third)
 	if sid and sid > 0 then
 		return sid
 	end
 	return nil
 end
 
-function ns.ResolveActionSpellID(button)
-	if not button then
+--- Some host bars report a macro id GetMacroBody does not accept. The macro
+--- name is on the button's text region, and GetMacroBody accepts a name.
+local function MacroBodyForButton(button)
+	if not (button and button.GetRegions and GetMacroBody) then
+		return nil
+	end
+	local regions = { button:GetRegions() }
+	for i = 1, #regions do
+		local region = regions[i]
+		if region and region.GetText then
+			local text = ReadableString(region:GetText())
+			if text and text ~= "" then
+				local ok, body = pcall(GetMacroBody, text)
+				if ok then
+					body = ReadableString(body)
+					if body and body ~= "" then
+						return body
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+--- Spellbook id for a macro's /cast name, including an explicit rank.
+local function ResolveSpellToken(token)
+	if not token then
+		return nil
+	end
+	-- /use 13 and /use 14 name an inventory slot, not a spell. A numeric
+	-- identifier must never be resolved as a spell id.
+	if token:match("^%d+$") then
+		return nil
+	end
+	local name, rank = ns.SplitRankSuffix(token)
+	if not name or name == "" then
+		return nil
+	end
+	local id = KnownSpellByName(name, rank)
+	if id and (rank or PlayerKnowsSpell(id)) then
+		return id
+	end
+	if C_Spell and C_Spell.GetSpellIDForSpellIdentifier then
+		local ok, resolved = pcall(C_Spell.GetSpellIDForSpellIdentifier, token)
+		local candidate = ok and ReadableNumber(resolved) or nil
+		if not candidate and rank then
+			ok, resolved = pcall(C_Spell.GetSpellIDForSpellIdentifier, name)
+			candidate = ok and ReadableNumber(resolved) or nil
+		end
+		if candidate and candidate > 0 and PlayerKnowsSpell(candidate) then
+			if rank then
+				if RankNumber(candidate) == rank then
+					return candidate
+				end
+			else
+				return candidate
+			end
+		end
+	end
+	return nil
+end
+
+--- Classic returns name, rank, spellID; some clients return a numeric id first.
+function ns.ResolveMacroSpellID(macroIndex)
+	macroIndex = ReadableNumber(macroIndex)
+	if not macroIndex or macroIndex <= 0 then
 		return nil
 	end
 
+	local body = MacroBody(macroIndex)
+	local token, rank
+	if body then
+		token = ns.FirstCastToken(body)
+		if token then
+			rank = select(2, ns.SplitRankSuffix(token))
+		end
+	end
+
+	-- An explicit rank is the one the player wrote, even when the client
+	-- reports the macro at its trained rank.
+	if rank then
+		local exact = ResolveSpellToken(token)
+		if exact then
+			return exact
+		end
+	end
+
+	-- A no-rank macro already resolves to the spell it casts. Do not replace
+	-- that id with a spellbook rank: the client can report a rank the player
+	-- has not trained, which hides a button that used to work.
+	local sid = MacroSpell(macroIndex)
+	if sid then
+		return sid
+	end
+
+	-- No rank: if the client did not resolve the macro, leave it to the
+	-- action-slot name fallback. A body-parsed name must not replace the
+	-- spell id the client already had working.
+	if rank and token then
+		local parsed = ResolveSpellToken(token)
+		if parsed then
+			return parsed
+		end
+	end
+	return nil
+end
+
+--- Last-resort spell id from the macro body, after GetMacroSpell and the
+--- macro name have both failed.
+function ns.ResolveMacroBodySpellID(macroIndex)
+	macroIndex = ReadableNumber(macroIndex)
+	if not macroIndex or macroIndex <= 0 then
+		return nil
+	end
+	local body = MacroBody(macroIndex)
+	local token = body and ns.FirstCastToken(body)
+	if not token then
+		return nil
+	end
+	return ResolveSpellToken(token)
+end
+
+--- Cost of the spell written in the macro body. Passing the name with its
+--- rank to GetSpellPowerCost avoids resolving the rank id at all.
+function ns.ComputeMacroDisplay(macroIndex, button)
+	local db = DB()
+	if not db or not db.enabled then
+		return nil
+	end
+	macroIndex = ReadableNumber(macroIndex)
+	if not macroIndex or macroIndex <= 0 then
+		return nil
+	end
+	local body = MacroBody(macroIndex)
+	if not body then
+		body = MacroBodyForButton(button)
+	end
+	local token = body and ns.FirstCastToken(body)
+	if not token or token:match("^%d+$") then
+		return nil
+	end
+	local getCosts = C_Spell and C_Spell.GetSpellPowerCost
+	if not getCosts then
+		return nil
+	end
+	local function CostFromIdentifier(identifier)
+		local ok, costs = pcall(getCosts, identifier)
+		if not ok then
+			return nil
+		end
+		return BestCostEntry(costs)
+	end
+	local amount, powerType = CostFromIdentifier(token)
+	local name, rank = ns.SplitRankSuffix(token)
+	if not amount and rank then
+		local word = token:match("%((%a+)%s+%d+%)")
+		if word then
+			amount, powerType = CostFromIdentifier(name .. " (" .. word .. " " .. rank .. ")")
+		end
+	end
+	if not amount then
+		local id = ResolveSpellToken(token)
+		if id then
+			amount, powerType = DirectSpellCost(id)
+			if not amount then
+				amount, powerType = RankCost(id)
+			end
+		end
+	end
+	if not amount then
+		return nil
+	end
+	return DisplayCost(amount, powerType)
+end
+
+local function ReadActionInfo(action)
+	local ok, rawType, rawID = pcall(GetActionInfo, action)
+	if not ok then
+		return nil
+	end
+	return ReadableString(rawType), ReadableNumber(rawID)
+end
+
+local function SlotFromName(button)
+	local name = button.GetName and button:GetName()
+	if type(name) ~= "string" then
+		return nil
+	end
+	local slot = name:match("^EABButton(%d+)$") or name:match("^ActionButton(%d+)$")
+	if slot then
+		return tonumber(slot)
+	end
+	return nil
+end
+
+--- Action slot a button currently fires. Host bars resolve this into
+--- `button.action` and/or the secure `action` attribute.
+function ns.ActionSlot(button)
+	if not button then
+		return nil
+	end
 	local action
 	if button.GetAttribute then
 		action = ReadableNumber(button:GetAttribute("action"))
@@ -816,13 +1217,31 @@ function ns.ResolveActionSpellID(button)
 	if not action or action <= 0 then
 		action = ReadableNumber(button.action)
 	end
-	if not action or action <= 0 then
+	-- Some host bars put a spell id in these fields. A real action slot is
+	-- 1-180; fall back to the slot in the button name when it is not.
+	if action and action > 0 and action <= 180 then
+		return action
+	end
+	local slot = SlotFromName(button)
+	if slot then
+		local ok, actionType = pcall(GetActionInfo, slot)
+		if ok and actionType then
+			return slot
+		end
+	end
+	if action and action > 0 then
+		return action
+	end
+	return nil
+end
+
+function ns.ResolveActionSpellID(button)
+	local action = ns.ActionSlot(button)
+	if not action then
 		return nil
 	end
 
-	local rawType, rawID = GetActionInfo(action)
-	local actionType = ReadableString(rawType)
-	local id = ReadableNumber(rawID)
+	local actionType, id = ReadActionInfo(action)
 	if not actionType or not id then
 		return nil
 	end
@@ -835,16 +1254,19 @@ function ns.ResolveActionSpellID(button)
 		if sid and sid > 0 then
 			return sid
 		end
-		-- Named macros sometimes only resolve through the action slot helper.
-		if GetActionText then
-			local name = GetActionText(action)
-			if type(name) == "string" and name ~= "" and C_Spell and C_Spell.GetSpellIDForSpellIdentifier then
-				sid = ReadableNumber(C_Spell.GetSpellIDForSpellIdentifier(name))
-				if sid and sid > 0 then
-					return sid
+		-- Last resort, kept from the version that worked: some macros do not
+		-- expose a body or a cast spell. Only accept a known spell.
+		if GetActionText and C_Spell and C_Spell.GetSpellIDForSpellIdentifier then
+			local name = ReadableString(GetActionText(action))
+			if name then
+				local ok, resolved = pcall(C_Spell.GetSpellIDForSpellIdentifier, name)
+				local candidate = ok and ReadableNumber(resolved) or nil
+				if candidate and candidate > 0 and PlayerKnowsSpell(candidate) then
+					return candidate
 				end
 			end
 		end
+		return ns.ResolveMacroBodySpellID(id)
 	end
 	-- Some Forever slots report an unusual spell-like type. Never feed an item
 	-- or macro id to GetSpellInfo: an unrelated spell could own that number.
@@ -863,28 +1285,20 @@ function ns.ResolveActionSpellID(button)
 	return nil
 end
 
-function ns.UpdateButtonOverlay(button, spellID, exact)
+--- Spell id currently shown on a tracked button, for the mouse probe.
+function ns.ButtonSpellID(button)
+	return button and overlaySpellIDs[button] or nil
+end
+
+function ns.ShowOverlayText(button, text, powerType)
 	if not button then
 		return
 	end
-
 	local db = DB()
-	if not db or not db.enabled then
+	if not db or not db.enabled or not text then
 		ns.HideOverlay(button)
 		return
 	end
-
-	if not spellID then
-		ns.HideOverlay(button)
-		return
-	end
-
-	local text, powerType = ns.ComputeDisplay(spellID, exact)
-	if not text then
-		ns.HideOverlay(button)
-		return
-	end
-
 	local fs = ns.EnsureOverlay(button)
 	if not fs then
 		return
@@ -895,6 +1309,23 @@ function ns.UpdateButtonOverlay(button, spellID, exact)
 	ApplyTextStyle(fs, powerType)
 	fs:SetText(text)
 	fs:Show()
+end
+
+function ns.UpdateButtonOverlay(button, spellID, exact)
+	if not button then
+		return
+	end
+
+	overlaySpellIDs[button] = spellID
+
+	local db = DB()
+	if not db or not db.enabled or not spellID then
+		ns.HideOverlay(button)
+		return
+	end
+
+	local text, powerType = ns.ComputeDisplay(spellID, exact)
+	ns.ShowOverlayText(button, text, powerType)
 end
 
 function ns.MarkLayoutDirty()
@@ -922,15 +1353,39 @@ function ns.RefreshAll()
 		local entry = trackedButtons[i]
 		local button = entry and entry.button
 		if button then
-			local spellID
-			local exact = entry.kind ~= "cdm"
 			if entry.kind == "cdm" then
-				spellID = entry.spellID or ns.ResolveCdmSpellID(button)
+				local spellID = entry.spellID or ns.ResolveCdmSpellID(button)
+				ns.UpdateButtonOverlay(button, spellID, false)
 			else
-				-- Always re-resolve: page/bonus remaps change action without new collect cache.
-				spellID = ns.ResolveActionSpellID(button)
+				local action = ns.ActionSlot(button)
+				local actionType, actionID
+				if action then
+					actionType, actionID = ReadActionInfo(action)
+				end
+
+				-- For a macro, the spell written after /cast is the spell the
+				-- player actually casts. Its name+rank goes straight to
+				-- GetSpellPowerCost, even when GetMacroSpell returns nothing.
+				local text, powerType
+				if actionType == "macro" and actionID then
+					text, powerType = ns.ComputeMacroDisplay(actionID, button)
+				end
+				if text then
+					overlaySpellIDs[button] = nil
+					ns.ShowOverlayText(button, text, powerType)
+				else
+					local spellID = ns.ResolveActionSpellID(button)
+					if spellID then
+						ns.UpdateButtonOverlay(button, spellID, true)
+					elseif action then
+						-- Last resort: the action's own tooltip. It follows
+						-- #showtooltip, so it may show the trained rank for a
+						-- macro that casts a lower rank.
+						text, powerType = ns.ComputeActionDisplay(action)
+						ns.ShowOverlayText(button, text, powerType)
+					end
+				end
 			end
-			ns.UpdateButtonOverlay(button, spellID, exact)
 		end
 	end
 
@@ -968,6 +1423,7 @@ end
 -- Delayed refresh for the noisy events (paging, spec, equipment, aura). They
 -- coalesce into one refresh through RequestRefresh.
 local function RefreshSoon()
+	wipe(actionCostCache)
 	ns.MarkLayoutDirty()
 	ns.RequestRefresh(false)
 end
