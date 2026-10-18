@@ -48,6 +48,9 @@ test("LoadDB fills defaults", function()
 	eq(db.fontSize, 9, "fontSize")
 	eq(db.showEfficiency, true, "showEfficiency")
 	eq(db.showThroughput, true, "showThroughput")
+	eq(db.showNotes, true, "showNotes")
+	eq(db.showNotesShiftOnly, true, "showNotesShiftOnly")
+	eq(db.showEfficiencyShiftOnly, false, "showEfficiencyShiftOnly")
 	eq(db.version, ns.DB_VERSION, "version")
 end)
 
@@ -157,6 +160,33 @@ test("cleave's next swing does not add the whole weapon hit", function()
 	eq(damage.aoe, true, "per target")
 end)
 
+test("SpellKey strips ranks so Cleave Rank 3 is still a next swing", function()
+	eq(ns.SpellKey("Cleave (Rank 3)"), "cleave")
+	eq(ns.SpellKey("Heroic Strike Rank 8"), "heroic strike")
+	local lines = { "Inflicts 100% weapon damage plus 5 to an enemy and its nearest ally." }
+	local stats = { melee = 100 }
+	local ratios = ns.ResourceRatios(lines, 20, "Cleave (Rank 3)", stats, nil)
+	near(ratioKind(ratios, "damage").ratio, 5 / 20, "bonus only")
+end)
+
+test("forgone rage raises the cost of next-swing abilities", function()
+	local lines = { "A strong attack that increases melee damage by 157." }
+	local stats = { melee = 500, swingRage = 12.456, swingSpeed = 3.6, twoHand = true }
+	local ratios = ns.ResourceRatios(lines, 15, "Heroic Strike", stats, nil, "rage")
+	near(ratioKind(ratios, "damage").ratio, 157 / (15 + 12.456), "with forgone rage")
+	eq(#ratios.notes > 0, true, "has notes")
+	eq(ratios.notes[1]:find("bonus damage", 1, true) ~= nil, true, "bonus note")
+end)
+
+test("DoT-heavy spells rate DPS over cast plus duration", function()
+	-- Immolate-style: 11 impact, 20 over 15 sec, 2 sec cast. DoT share > 45%.
+	local lines = { "Burns the enemy for 11 Fire damage and an additional 20 Fire damage over 15 sec." }
+	local cast = { kind = "cast", seconds = 2 }
+	local rates = ns.ThroughputRates(lines, cast, "Immolate", nil, "mana", nil)
+	near(rates.dps, 20 / 17, "dot over cast+duration")
+	eq(rates.notes[1]:find("over time", 1, true) ~= nil, true, "dot note")
+end)
+
 test("an absorb shield includes mana spent while it holds", function()
 	local lines = { "Absorbs 200 damage, draining 2 mana per damage absorbed." }
 	local ratios = ns.ResourceRatios(lines, 100, "Mana Shield", nil, nil)
@@ -213,6 +243,13 @@ test("LoadDB turns the minimap button on and moves it off the 220 angle", functi
 	eq(db.showMinimapButton, true, "showMinimapButton")
 	eq(db.minimapIcon.minimapPos, 245, "minimapPos")
 	eq(db.minimapAngle, nil, "old key")
+end)
+
+test("LoadDB migrates tooltip notes defaults", function()
+	local db = ns.LoadDB({ version = 10 })
+	eq(db.showNotes, true, "showNotes")
+	eq(db.showNotesShiftOnly, true, "showNotesShiftOnly")
+	eq(db.version, 11, "version")
 end)
 
 if failed > 0 then

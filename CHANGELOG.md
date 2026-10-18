@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.0
+
+Spell tooltip efficiency: ranked next-swing names, forgone rage, DoT-heavy DPS, and Shift-gated calculation notes.
+
+### Added
+
+- Next-swing abilities (Heroic Strike, Cleave, Maul) count the rage the empowered swing would have generated as cost too.
+- DoT-heavy spells (Immolate-style) rate DPS as the DoT over cast time plus duration.
+- Calculation notes on tooltips (forgone rage, DoT mode, absorb drain, weapon source). Notes are Shift-only by default.
+- Optional Shift-only toggles for efficiency and per-second suffixes.
+- A combat-secret marker when weapon damage or swing rage cannot be read in combat.
+
+### Fixed
+
+- Ranked titles such as `Cleave (Rank 3)` now match next-swing and shot-interval name tables.
+- Skipped amount ranges no longer re-match the second bound of `31 to 45`.
+
 ## 1.3.0
 
 Spell tooltips show what a spell returns for its cost, and the healing or damage per second of casting it again immediately. The player-facing name is Spell Resources.

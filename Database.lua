@@ -3,7 +3,7 @@ local _, ns = ...
 -- Saved variables: defaults, migrations, validation. Plain Lua, so the tests
 -- can load it without a client.
 
-local DB_VERSION = 10
+local DB_VERSION = 11
 local MINIMAP_POS = 245
 
 local ANCHORS = {
@@ -29,7 +29,11 @@ local defaults = {
 	percentEnergy = false,
 	percentFocus = false,
 	showEfficiency = true,
+	showEfficiencyShiftOnly = false,
 	showThroughput = true,
+	showThroughputShiftOnly = false,
+	showNotes = true,
+	showNotesShiftOnly = true,
 	showMinimapButton = true,
 	anchor = "BOTTOMLEFT",
 	offsetX = 1,
@@ -146,6 +150,13 @@ local function MigrateDB(db)
 			db.minimapIcon.minimapPos = db.minimapAngle % 360
 		end
 		db.minimapAngle = nil
+	end
+	if version < 11 then
+		-- Tooltip notes and Shift-only toggles.
+		db.showNotes = true
+		db.showNotesShiftOnly = true
+		db.showEfficiencyShiftOnly = false
+		db.showThroughputShiftOnly = false
 	end
 	db.version = DB_VERSION
 end

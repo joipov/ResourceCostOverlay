@@ -305,6 +305,15 @@ function ns.InitOptions()
 			"Damage, healing, or absorb per point of mana, rage, energy, or focus, on the cost line. English spell descriptions."
 		)
 
+		local efficiencyShift = AddCheckbox(
+			category,
+			"EFFICIENCY_SHIFT",
+			"showEfficiencyShiftOnly",
+			"Efficiency only while Shift is held",
+			defaults.showEfficiencyShiftOnly == true,
+			"Hides the efficiency suffix until Shift is held."
+		)
+
 		local throughput = AddCheckbox(
 			category,
 			"SHOW_THROUGHPUT",
@@ -312,6 +321,33 @@ function ns.InitOptions()
 			"Healing and damage per second",
 			defaults.showThroughput ~= false,
 			"On the cast line, for spells that can be cast again immediately. English spell descriptions."
+		)
+
+		local throughputShift = AddCheckbox(
+			category,
+			"THROUGHPUT_SHIFT",
+			"showThroughputShiftOnly",
+			"Per-second rates only while Shift is held",
+			defaults.showThroughputShiftOnly == true,
+			"Hides the dps/hps suffix until Shift is held."
+		)
+
+		local notes = AddCheckbox(
+			category,
+			"SHOW_NOTES",
+			"showNotes",
+			"Calculation notes",
+			defaults.showNotes ~= false,
+			"Explains forgone rage, DoT DPS mode, absorb drain, and similar calculations."
+		)
+
+		local notesShift = AddCheckbox(
+			category,
+			"NOTES_SHIFT",
+			"showNotesShiftOnly",
+			"Notes only while Shift is held",
+			defaults.showNotesShiftOnly ~= false,
+			"Shows a Shift hint after the suffix until Shift is held."
 		)
 
 		AddHeader(category, "Placement")
@@ -405,7 +441,11 @@ function ns.InitOptions()
 		Parent(percentEnergy)
 		Parent(percentFocus)
 		Parent(efficiency)
+		Parent(efficiencyShift)
 		Parent(throughput)
+		Parent(throughputShift)
+		Parent(notes)
+		Parent(notesShift)
 		Parent(numberPosition)
 		Parent(offsetX)
 		Parent(offsetY)

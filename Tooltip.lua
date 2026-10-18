@@ -32,6 +32,16 @@ local cache = {}
 local cacheOrder = {}
 local busy = false
 
+-- Rage an auto attack generates. Warrior: weapon speed x 3.46/4.50. Bear: flat 11.
+local SWING_RAGE_ONE_HAND, SWING_RAGE_TWO_HAND = 3.46, 4.50
+local BEAR_SWING_RAGE = 11
+local MAIN_HAND_SLOT = 16
+local weaponCache = {}
+local itemScanner
+
+-- GameTooltip while a Shift-only part is waiting to redraw.
+local shiftTooltip
+
 local function SecretBlocked(value)
 	return issecretvalue and issecretvalue(value) and not (canaccessvalue and canaccessvalue(value))
 end
@@ -256,37 +266,111 @@ local function CooldownSeconds(spellID)
 	return ms / 1000
 end
 
+-- Main-hand base speed and two-handed flag from the item tooltip (before haste).
+-- Returns weapon, or nil and true when the link or tooltip text is a combat secret.
+local function ReadMainHand()
+	local link = GetInventoryItemLink and GetInventoryItemLink("player", MAIN_HAND_SLOT)
+	if SecretBlocked(link) then
+		return nil, true
+	end
+	if not link then
+		return nil
+	end
+	local weapon = weaponCache[link]
+	if weapon == nil then
+		itemScanner = itemScanner
+			or CreateFrame("GameTooltip", "ResourceCostOverlayItemScanner", nil, "GameTooltipTemplate")
+		itemScanner:SetOwner(WorldFrame, "ANCHOR_NONE")
+		itemScanner:SetInventoryItem("player", MAIN_HAND_SLOT)
+		local speed, twoHand, secret = nil, false, false
+		local count = itemScanner:NumLines()
+		if SecretBlocked(count) then
+			secret = true
+			count = 0
+		end
+		for i = 1, count do
+			local left = _G["ResourceCostOverlayItemScannerTextLeft" .. i]
+			local right = _G["ResourceCostOverlayItemScannerTextRight" .. i]
+			local leftText = left and left:GetText()
+			local rightText = right and right:IsShown() and right:GetText()
+			if SecretBlocked(leftText) or SecretBlocked(rightText) then
+				secret = true
+			else
+				if leftText == "Two-Hand" then
+					twoHand = true
+				end
+				if type(rightText) == "string" then
+					speed = speed or tonumber(rightText:match("^Speed (%d+%.?%d*)"))
+				end
+			end
+		end
+		itemScanner:Hide()
+		if secret then
+			return nil, true
+		end
+		weapon = speed and { speed = speed, twoHand = twoHand } or false
+		weaponCache[link] = weapon
+	end
+	return weapon or nil
+end
+
 local function CombatStats()
-	local stats = {}
+	local stats = { secret = {} }
 	local ok = pcall(function()
+		local _, class = UnitClass("player")
+		if class == "WARRIOR" then
+			local weaponOk, weapon, weaponSecret = pcall(ReadMainHand)
+			if weaponOk and weapon then
+				stats.swingSpeed = weapon.speed
+				stats.twoHand = weapon.twoHand
+				stats.swingRage = weapon.speed * (weapon.twoHand and SWING_RAGE_TWO_HAND or SWING_RAGE_ONE_HAND)
+			elseif weaponOk and weaponSecret then
+				stats.secret.swingRage = true
+			end
+		elseif class == "DRUID" then
+			stats.swingRage = BEAR_SWING_RAGE
+			stats.bearForm = true
+		end
 		if UnitDamage then
 			local minDamage, maxDamage = UnitDamage("player")
-			minDamage = ReadableNumber(minDamage)
-			maxDamage = ReadableNumber(maxDamage)
-			if minDamage and maxDamage and maxDamage > 0 then
-				stats.melee = (minDamage + maxDamage) / 2
+			if SecretBlocked(minDamage) or SecretBlocked(maxDamage) then
+				stats.secret.melee = true
+			else
+				minDamage = ReadableNumber(minDamage)
+				maxDamage = ReadableNumber(maxDamage)
+				if minDamage and maxDamage and maxDamage > 0 then
+					stats.melee = (minDamage + maxDamage) / 2
+				end
 			end
 		end
 		if UnitRangedDamage then
 			local _, minDamage, maxDamage = UnitRangedDamage("player")
-			minDamage = ReadableNumber(minDamage)
-			maxDamage = ReadableNumber(maxDamage)
-			if minDamage and maxDamage and maxDamage > 0 then
-				stats.ranged = (minDamage + maxDamage) / 2
+			if SecretBlocked(minDamage) or SecretBlocked(maxDamage) then
+				stats.secret.ranged = true
+			else
+				minDamage = ReadableNumber(minDamage)
+				maxDamage = ReadableNumber(maxDamage)
+				if minDamage and maxDamage and maxDamage > 0 then
+					stats.ranged = (minDamage + maxDamage) / 2
+				end
 			end
 		end
 		if UnitAttackPower then
 			local base, positive, negative = UnitAttackPower("player")
-			base = ReadableNumber(base)
-			positive = ReadableNumber(positive) or 0
-			negative = ReadableNumber(negative) or 0
-			if base then
-				stats.ap = base + positive + negative
+			if SecretBlocked(base) or SecretBlocked(positive) or SecretBlocked(negative) then
+				stats.secret.ap = true
+			else
+				base = ReadableNumber(base)
+				positive = ReadableNumber(positive) or 0
+				negative = ReadableNumber(negative) or 0
+				if base then
+					stats.ap = base + positive + negative
+				end
 			end
 		end
 	end)
 	if not ok then
-		return {}
+		return { secret = {} }
 	end
 	return stats
 end
@@ -304,7 +388,69 @@ local function CurrentComboPoints()
 end
 
 local function StatsKey(stats)
-	return string.format("%.1f|%.1f|%.1f", stats.melee or 0, stats.ranged or 0, stats.ap or 0)
+	local secret = stats.secret or {}
+	return string.format(
+		"%.1f|%.1f|%.1f|%.2f|%s%s%s%s",
+		stats.melee or 0,
+		stats.ranged or 0,
+		stats.ap or 0,
+		stats.swingRage or 0,
+		secret.melee and "m" or "",
+		secret.ranged and "r" or "",
+		secret.ap and "a" or "",
+		secret.swingRage and "s" or ""
+	)
+end
+
+local function AppendNotes(notes, more)
+	for i = 1, #(more or {}) do
+		local note = more[i]
+		local seen = false
+		for j = 1, #notes do
+			if notes[j] == note then
+				seen = true
+				break
+			end
+		end
+		if not seen then
+			notes[#notes + 1] = note
+		end
+	end
+end
+
+-- True if a tooltip part is on, and Shift is held when it is Shift-only.
+-- ItemRefTooltip always shows Shift-only parts (Shift-click opens the link).
+local function Shown(part, tooltip)
+	local db = ns.db
+	if not db or not db[part] then
+		return false
+	end
+	local shiftOnly = db[part .. "ShiftOnly"]
+	if not shiftOnly then
+		return true
+	end
+	return IsShiftKeyDown() or tooltip ~= GameTooltip
+end
+
+local function AnyShiftOnly()
+	local db = ns.db
+	if not db then
+		return false
+	end
+	return (db.showEfficiency and db.showEfficiencyShiftOnly)
+		or (db.showThroughput and db.showThroughputShiftOnly)
+		or (db.showNotes and db.showNotesShiftOnly)
+end
+
+local function RefreshForShift()
+	if not (shiftTooltip and shiftTooltip:IsShown()) then
+		return
+	end
+	local owner = shiftTooltip:GetOwner()
+	local refresh = owner and (owner.UpdateTooltip or owner:GetScript("OnEnter"))
+	if refresh then
+		refresh(owner)
+	end
 end
 
 local function Cached(key, build)
@@ -387,6 +533,14 @@ local function Process(tooltip, spellID)
 	end
 
 	local title = FontLine(frameName, "TextLeft", 1)
+	local titleSecret = false
+	if not title then
+		local titleLine = _G[frameName .. "TextLeft1"]
+		local rawTitle = titleLine and titleLine:GetText()
+		if SecretBlocked(rawTitle) then
+			titleSecret = true
+		end
+	end
 	ns.lastSpellTooltip = {
 		name = title,
 		id = spellID,
@@ -412,44 +566,79 @@ local function Process(tooltip, spellID)
 
 	local stats = CombatStats()
 	local comboPoints = CurrentComboPoints()
+	local showEfficiency = Shown("showEfficiency", tooltip)
+	local showThroughput = Shown("showThroughput", tooltip)
 	local castKey = ""
 	if cast then
 		castKey = cast.kind .. ":" .. tostring(cast.seconds) .. ":" .. tostring(cast.cooldown or 0)
 	end
 	local key = table.concat({
-		db.showEfficiency and "1" or "0",
-		db.showThroughput and "1" or "0",
+		showEfficiency and "1" or "0",
+		showThroughput and "1" or "0",
 		tostring(cost or 0),
 		resource and resource.key or "",
 		title or "",
 		StatsKey(stats),
 		tostring(comboPoints or 0),
 		castKey,
+		titleSecret and "s" or "",
 		table.concat(lines, "|"),
 	}, "\1")
 
 	local suffixes = Cached(key, function()
-		local ratio, rate
-		if db.showEfficiency and cost and cost > 0 and resource then
-			ratio = ns.FormatResourceSuffix(lines, cost, resource.key, title, stats, comboPoints)
+		local ratio, rate, ratioNotes, rateNotes
+		if showEfficiency and costLine and resource then
+			if titleSecret then
+				ratio, ratioNotes = ns.SECRET_SUFFIX, { ns.SECRET_NOTE }
+			elseif cost and cost > 0 then
+				ratio, ratioNotes = ns.FormatResourceSuffix(lines, cost, resource.key, title, stats, comboPoints)
+			end
 		end
-		if db.showThroughput and cast then
-			rate = ns.FormatThroughputSuffix(lines, cast, resource and resource.key, title, stats, comboPoints)
+		if showThroughput and cast then
+			if titleSecret and cast.kind ~= "nextswing" then
+				rate, rateNotes = ns.SECRET_SUFFIX, { ns.SECRET_NOTE }
+			else
+				rate, rateNotes = ns.FormatThroughputSuffix(lines, cast, resource and resource.key, title, stats, comboPoints)
+			end
 		end
-		return { ratio = ratio or false, rate = rate or false }
+		return {
+			ratio = ratio or false,
+			rate = rate or false,
+			ratioNotes = ratioNotes or false,
+			rateNotes = rateNotes or false,
+		}
 	end)
 
 	local ratio = SuffixOrNil(suffixes.ratio)
 	local rate = SuffixOrNil(suffixes.rate)
+	local notes = {}
+	AppendNotes(notes, SuffixOrNil(suffixes.ratioNotes))
+	AppendNotes(notes, SuffixOrNil(suffixes.rateNotes))
 	tooltip.rcoAnnotated = true
 	local changed = false
+	local keyLine
 	if ratio and costLine and costText then
 		costLine:SetText(costText .. ratio)
+		keyLine = costLine
 		changed = true
 	end
 	if rate and cast and cast.line and cast.text then
 		cast.line:SetText(cast.text .. rate)
+		keyLine = cast.line
 		changed = true
+	end
+	if db.showNotes and #notes > 0 and keyLine then
+		if Shown("showNotes", tooltip) then
+			for i = 1, #notes do
+				tooltip:AddLine(notes[i], 0.8, 0.8, 0.8, true)
+			end
+		else
+			keyLine:SetText(keyLine:GetText() .. " |cff808080(Shift)|r")
+		end
+		changed = true
+	end
+	if tooltip == GameTooltip and AnyShiftOnly() then
+		shiftTooltip = tooltip
 	end
 	if changed and tooltip:IsShown() then
 		busy = true
@@ -468,6 +657,9 @@ local function HookClear(tooltip)
 	tooltip:HookScript("OnTooltipCleared", function(self)
 		if not self.rcoResizing then
 			self.rcoAnnotated = nil
+		end
+		if self == shiftTooltip then
+			shiftTooltip = nil
 		end
 	end)
 end
@@ -501,6 +693,13 @@ local function Install()
 			end
 		end)
 	end
+	local shiftFrame = CreateFrame("Frame")
+	shiftFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
+	shiftFrame:SetScript("OnEvent", function(_, _, key)
+		if key == "LSHIFT" or key == "RSHIFT" then
+			RefreshForShift()
+		end
+	end)
 end
 
 Install()

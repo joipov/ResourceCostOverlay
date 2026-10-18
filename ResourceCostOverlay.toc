@@ -2,7 +2,7 @@
 ## Title: Spell Resources
 ## Notes: Shows mana, rage, energy, and focus costs on icons, and damage, healing, and absorb per point plus healing and damage per second on spell tooltips.
 ## Author: Joipov
-## Version: 1.3.0
+## Version: 1.4.0
 ## Category: |cff8b5cf6Joipov|r Tools
 ## IconTexture: Interface\Icons\INV_Misc_Note_01
 ## SavedVariables: ResourceCostOverlayDB
