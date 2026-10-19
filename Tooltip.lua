@@ -649,7 +649,7 @@ local function Process(tooltip, spellID)
 		if wantCoefficients then
 			if titleSecret then
 				coefficients = {
-					rows = { { text = "Spell Power  " .. ns.SECRET_SUFFIX } },
+					rows = { { text = "Spell Power " .. ns.SECRET_SUFFIX } },
 					notes = { ns.SECRET_NOTE },
 				}
 			else

@@ -43,7 +43,7 @@ local UNIT_AFTER = {
 }
 
 local ACCENT = "ff6fc3ff"
-local SEPARATOR = "  \194\183  "
+local SEPARATOR = " \194\183 "
 
 local function ToNum(text)
 	return tonumber((text:gsub("[,%.]$", "")))
@@ -233,7 +233,7 @@ local function AddPowerRow(rows, label, amount, share, power, estimate)
 			.. (amount.ticks and " each" or "")
 	end
 	rows[#rows + 1] = {
-		text = label .. "  " .. right,
+		text = label .. " " .. right,
 		share = share,
 		estimate = estimate and true or false,
 		kind = "spell",
@@ -253,7 +253,7 @@ local function AttackPowerRows(text, stats, rows, notes)
 	local right = FormatShare(share, false)
 	if secret then
 		rows[#rows + 1] = {
-			text = "Attack Power  " .. right .. ns.SECRET_SUFFIX,
+			text = "Attack Power " .. right .. ns.SECRET_SUFFIX,
 			share = share,
 			estimate = false,
 			kind = "attack",
@@ -267,7 +267,7 @@ local function AttackPowerRows(text, stats, rows, notes)
 		right = right .. SEPARATOR .. "+" .. bonus
 	end
 	rows[#rows + 1] = {
-		text = "Attack Power  " .. right,
+		text = "Attack Power " .. right,
 		share = share,
 		estimate = false,
 		kind = "attack",
