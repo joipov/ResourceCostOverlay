@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+
+Spell tooltips show estimated spell power coefficients (and explicit attack power shares) from cast time, DoT duration, and live player stats—no spell-ID database.
+
+### Added
+
+- Coefficient lines under the spell description: share of spell power or healing power, and a base + bonus split using your current bonuses. Formula estimates are marked `~`.
+- Attack power coefficient when the description names a percent of your attack power.
+- Settings toggles for coefficients and Shift-only display.
+- `/rco spell` prints the coefficient rows for the last tooltip.
+
 ## 1.4.3
 
 Action-bar macros on custom bars now show the cost of the rank written in the macro, even when the client does not expose the macro body or spell by its macro id.

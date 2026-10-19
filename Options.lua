@@ -209,7 +209,7 @@ function ns.InitOptions()
 			"enabled",
 			"Enable Spell Resources",
 			defaults.enabled ~= false,
-			"Shows resource costs on ability icons, and rates on spell tooltips."
+			"Shows resource costs on ability icons, and rates and coefficients on spell tooltips."
 		)
 
 		local minimapCheckbox = AddCheckbox(
@@ -350,6 +350,24 @@ function ns.InitOptions()
 			"Shows a Shift hint after the suffix until Shift is held."
 		)
 
+		local coefficients = AddCheckbox(
+			category,
+			"SHOW_COEFFICIENTS",
+			"showCoefficients",
+			"Spell power coefficients",
+			defaults.showCoefficients ~= false,
+			"Estimated spell power (and explicit attack power) coefficients under the description. Formula estimates are marked ~. English spell descriptions."
+		)
+
+		local coefficientsShift = AddCheckbox(
+			category,
+			"COEFFICIENTS_SHIFT",
+			"showCoefficientsShiftOnly",
+			"Coefficients only while Shift is held",
+			defaults.showCoefficientsShiftOnly == true,
+			"Hides the coefficient lines until Shift is held."
+		)
+
 		AddHeader(category, "Placement")
 
 		local numberPosition = AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()
@@ -446,6 +464,8 @@ function ns.InitOptions()
 		Parent(throughputShift)
 		Parent(notes)
 		Parent(notesShift)
+		Parent(coefficients)
+		Parent(coefficientsShift)
 		Parent(numberPosition)
 		Parent(offsetX)
 		Parent(offsetY)
@@ -658,6 +678,12 @@ _G.SlashCmdList.RCO = function(msg)
 		local lines = last.lines or {}
 		for i = 1, #lines do
 			ns.Print(string.format("%d: %s", i, lines[i]))
+		end
+		local coeffs = last.coefficients
+		if coeffs and coeffs.rows then
+			for i = 1, #coeffs.rows do
+				ns.Print("coeff: " .. tostring(coeffs.rows[i].text))
+			end
 		end
 		return
 	end

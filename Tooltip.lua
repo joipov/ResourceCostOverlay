@@ -1,6 +1,7 @@
 --[[
-  Spell tooltip lines: output per resource point on the cost line, and
-  healing or damage per second on the cast line.
+  Spell tooltip lines: output per resource point on the cost line,
+  healing or damage per second on the cast line, and formula spell/attack
+  power coefficients under the description.
 
   The number written on the tooltip is the rank being shown. A percent-of-base
   line falls back to the resolved power cost. English descriptions only.
@@ -381,6 +382,31 @@ local function CombatStats()
 				end
 			end
 		end
+		if GetSpellBonusHealing then
+			local healing = GetSpellBonusHealing()
+			if SecretBlocked(healing) then
+				stats.secret.spellHealing = true
+			else
+				stats.spellHealing = ReadableNumber(healing)
+			end
+		end
+		if GetSpellBonusDamage then
+			local spellDamage = {}
+			local anySecret = false
+			-- School indices match GetSpellBonusDamage: 2 Holy … 7 Arcane.
+			for school = 2, 7 do
+				local bonus = GetSpellBonusDamage(school)
+				if SecretBlocked(bonus) then
+					anySecret = true
+				else
+					spellDamage[school] = ReadableNumber(bonus)
+				end
+			end
+			if anySecret then
+				stats.secret.spellDamage = true
+			end
+			stats.spellDamage = spellDamage
+		end
 	end)
 	if not ok then
 		return { secret = {} }
@@ -402,16 +428,28 @@ end
 
 local function StatsKey(stats)
 	local secret = stats.secret or {}
+	local spellDamage = stats.spellDamage or {}
 	return string.format(
-		"%.1f|%.1f|%.1f|%.2f|%s%s%s%s",
+		"%.1f|%.1f|%.1f|%.2f|%s|%s|%s%s%s%s%s%s",
 		stats.melee or 0,
 		stats.ranged or 0,
 		stats.ap or 0,
 		stats.swingRage or 0,
+		tostring(stats.spellHealing or 0),
+		table.concat({
+			tostring(spellDamage[2] or 0),
+			tostring(spellDamage[3] or 0),
+			tostring(spellDamage[4] or 0),
+			tostring(spellDamage[5] or 0),
+			tostring(spellDamage[6] or 0),
+			tostring(spellDamage[7] or 0),
+		}, ","),
 		secret.melee and "m" or "",
 		secret.ranged and "r" or "",
 		secret.ap and "a" or "",
-		secret.swingRage and "s" or ""
+		secret.swingRage and "s" or "",
+		secret.spellHealing and "h" or "",
+		secret.spellDamage and "p" or ""
 	)
 end
 
@@ -453,6 +491,7 @@ local function AnyShiftOnly()
 	return (db.showEfficiency and db.showEfficiencyShiftOnly)
 		or (db.showThroughput and db.showThroughputShiftOnly)
 		or (db.showNotes and db.showNotesShiftOnly)
+		or (db.showCoefficients and db.showCoefficientsShiftOnly)
 end
 
 local function RefreshForShift()
@@ -524,7 +563,8 @@ local function Process(tooltip, spellID)
 		return
 	end
 	local db = ns.db
-	if not db or not db.enabled or (not db.showEfficiency and not db.showThroughput) then
+	if not db or not db.enabled
+		or (not db.showEfficiency and not db.showThroughput and not db.showCoefficients) then
 		return
 	end
 
@@ -570,6 +610,8 @@ local function Process(tooltip, spellID)
 	local comboPoints = CurrentComboPoints()
 	local showEfficiency = Shown("showEfficiency", tooltip)
 	local showThroughput = Shown("showThroughput", tooltip)
+	local showCoefficients = Shown("showCoefficients", tooltip)
+	local wantCoefficients = db.showCoefficients and ns.SpellCoefficients
 	local castKey = ""
 	if cast then
 		castKey = cast.kind .. ":" .. tostring(cast.seconds) .. ":" .. tostring(cast.cooldown or 0)
@@ -577,6 +619,7 @@ local function Process(tooltip, spellID)
 	local key = table.concat({
 		showEfficiency and "1" or "0",
 		showThroughput and "1" or "0",
+		wantCoefficients and "1" or "0",
 		tostring(cost or 0),
 		resource and resource.key or "",
 		title or "",
@@ -588,7 +631,7 @@ local function Process(tooltip, spellID)
 	}, "\1")
 
 	local suffixes = Cached(key, function()
-		local ratio, rate, ratioNotes, rateNotes
+		local ratio, rate, ratioNotes, rateNotes, coefficients
 		if showEfficiency and costLine and resource then
 			if titleSecret then
 				ratio, ratioNotes = ns.SECRET_SUFFIX, { ns.SECRET_NOTE }
@@ -603,19 +646,37 @@ local function Process(tooltip, spellID)
 				rate, rateNotes = ns.FormatThroughputSuffix(lines, cast, resource and resource.key, title, stats, comboPoints)
 			end
 		end
+		if wantCoefficients then
+			if titleSecret then
+				coefficients = {
+					rows = { { text = "Spell Power  " .. ns.SECRET_SUFFIX } },
+					notes = { ns.SECRET_NOTE },
+				}
+			else
+				coefficients = ns.SpellCoefficients(lines, cast, title, stats)
+			end
+		end
 		return {
 			ratio = ratio or false,
 			rate = rate or false,
 			ratioNotes = ratioNotes or false,
 			rateNotes = rateNotes or false,
+			coefficients = coefficients or false,
 		}
 	end)
 
 	local ratio = SuffixOrNil(suffixes.ratio)
 	local rate = SuffixOrNil(suffixes.rate)
+	local coefficients = SuffixOrNil(suffixes.coefficients)
 	local notes = {}
 	AppendNotes(notes, SuffixOrNil(suffixes.ratioNotes))
 	AppendNotes(notes, SuffixOrNil(suffixes.rateNotes))
+	if coefficients then
+		ns.lastSpellTooltip.coefficients = coefficients
+		if showCoefficients then
+			AppendNotes(notes, coefficients.notes)
+		end
+	end
 	tooltip.rcoAnnotated = true
 	local changed = false
 	local keyLine
@@ -629,6 +690,21 @@ local function Process(tooltip, spellID)
 		keyLine = cast.line
 		changed = true
 	end
+	if coefficients and coefficients.rows then
+		if showCoefficients then
+			for i = 1, #coefficients.rows do
+				tooltip:AddLine(coefficients.rows[i].text, 0.8, 0.8, 0.8, true)
+			end
+			changed = true
+		elseif db.showCoefficientsShiftOnly then
+			if keyLine then
+				keyLine:SetText(keyLine:GetText() .. " |cff808080(Shift)|r")
+			else
+				tooltip:AddLine("|cff808080Coefficients (Shift)|r", 0.8, 0.8, 0.8, true)
+			end
+			changed = true
+		end
+	end
 	if db.showNotes and #notes > 0 and keyLine then
 		if Shown("showNotes", tooltip) then
 			for i = 1, #notes do
@@ -638,6 +714,13 @@ local function Process(tooltip, spellID)
 			keyLine:SetText(keyLine:GetText() .. " |cff808080(Shift)|r")
 		end
 		changed = true
+	elseif db.showNotes and #notes > 0 and showCoefficients then
+		if Shown("showNotes", tooltip) then
+			for i = 1, #notes do
+				tooltip:AddLine(notes[i], 0.8, 0.8, 0.8, true)
+			end
+			changed = true
+		end
 	end
 	if tooltip == GameTooltip and AnyShiftOnly() then
 		shiftTooltip = tooltip

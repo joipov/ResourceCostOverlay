@@ -73,6 +73,8 @@
     "UnitDamage",
     "UnitRangedDamage",
     "UnitAttackPower",
+    "GetSpellBonusDamage",
+    "GetSpellBonusHealing",
     "GetLocale",
     "GetSpellBaseCooldown",
     "TooltipDataProcessor",

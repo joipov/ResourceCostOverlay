@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: Spell Resources
-## Notes: Shows mana, rage, energy, and focus costs on icons, and damage, healing, and absorb per point plus healing and damage per second on spell tooltips.
+## Notes: Shows mana, rage, energy, and focus costs on icons, and damage, healing, and absorb per point, healing and damage per second, and spell power coefficients on spell tooltips.
 ## Author: Joipov
-## Version: 1.4.3
+## Version: 1.5.0
 ## Category: |cff8b5cf6Joipov|r Tools
 ## IconTexture: Interface\Icons\INV_Misc_Note_01
 ## SavedVariables: ResourceCostOverlayDB
@@ -19,6 +19,7 @@ Database.lua
 SpellText.lua
 Core.lua
 Efficiency.lua
+Coefficients.lua
 Tooltip.lua
 Targets.lua
 MinimapButton.lua

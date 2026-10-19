@@ -69,6 +69,8 @@ read_globals = {
 	"UnitDamage",
 	"UnitRangedDamage",
 	"UnitAttackPower",
+	"GetSpellBonusDamage",
+	"GetSpellBonusHealing",
 	"GetLocale",
 	"GetSpellBaseCooldown",
 	"TooltipDataProcessor",

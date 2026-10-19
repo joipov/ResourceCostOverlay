@@ -3,7 +3,7 @@ local _, ns = ...
 -- Saved variables: defaults, migrations, validation. Plain Lua, so the tests
 -- can load it without a client.
 
-local DB_VERSION = 11
+local DB_VERSION = 12
 local MINIMAP_POS = 245
 
 local ANCHORS = {
@@ -34,6 +34,8 @@ local defaults = {
 	showThroughputShiftOnly = false,
 	showNotes = true,
 	showNotesShiftOnly = true,
+	showCoefficients = true,
+	showCoefficientsShiftOnly = false,
 	showMinimapButton = true,
 	anchor = "BOTTOMLEFT",
 	offsetX = 1,
@@ -157,6 +159,11 @@ local function MigrateDB(db)
 		db.showNotesShiftOnly = true
 		db.showEfficiencyShiftOnly = false
 		db.showThroughputShiftOnly = false
+	end
+	if version < 12 then
+		-- Formula spell/attack power coefficients on spell tooltips.
+		db.showCoefficients = true
+		db.showCoefficientsShiftOnly = false
 	end
 	db.version = DB_VERSION
 end

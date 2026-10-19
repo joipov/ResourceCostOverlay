@@ -3,7 +3,7 @@
 --   lua5.1 tests/run.lua
 -- Files that create frames (Core.lua, Targets.lua, Options.lua,
 -- MinimapButton.lua, Tooltip.lua) are not loaded. Database.lua,
--- SpellText.lua, and Efficiency.lua are plain Lua.
+-- SpellText.lua, Efficiency.lua, and Coefficients.lua are plain Lua.
 
 local root = (arg and arg[0] or "tests/run.lua"):match("^(.*)[/\\]tests[/\\]") or "."
 
@@ -17,6 +17,7 @@ end
 load("Database.lua")
 load("SpellText.lua")
 load("Efficiency.lua")
+load("Coefficients.lua")
 
 local passed, failed = 0, 0
 
@@ -52,6 +53,8 @@ test("LoadDB fills defaults", function()
 	eq(db.showNotes, true, "showNotes")
 	eq(db.showNotesShiftOnly, true, "showNotesShiftOnly")
 	eq(db.showEfficiencyShiftOnly, false, "showEfficiencyShiftOnly")
+	eq(db.showCoefficients, true, "showCoefficients")
+	eq(db.showCoefficientsShiftOnly, false, "showCoefficientsShiftOnly")
 	eq(db.version, ns.DB_VERSION, "version")
 end)
 
@@ -273,7 +276,110 @@ test("LoadDB migrates tooltip notes defaults", function()
 	local db = ns.LoadDB({ version = 10 })
 	eq(db.showNotes, true, "showNotes")
 	eq(db.showNotesShiftOnly, true, "showNotesShiftOnly")
-	eq(db.version, 11, "version")
+	eq(db.showCoefficients, true, "showCoefficients")
+	eq(db.version, 12, "version")
+end)
+
+test("coefficient cast seconds follow Forever rules", function()
+	near(ns.CoefficientCastSeconds({ kind = "instant" }), 1.5, "instant")
+	near(ns.CoefficientCastSeconds({ kind = "cast", seconds = 1.5 }), 1.5, "1.5s")
+	near(ns.CoefficientCastSeconds({ kind = "cast", seconds = 3.5 }), 3.5, "3.5s")
+	near(ns.CoefficientCastSeconds({ kind = "cast", seconds = 5 }), 3.5, "capped")
+	near(ns.CoefficientCastSeconds({ kind = "channeled" }, { duration = 3 }), 3, "channel")
+end)
+
+test("direct coefficient shares from cast time", function()
+	local direct = { low = 100, high = 120 }
+	local share = ns.EstimateCoefficientShares({ kind = "cast", seconds = 3.5 }, direct, nil)
+	near(share, 1, "3.5s = 100%")
+	share = ns.EstimateCoefficientShares({ kind = "instant" }, direct, nil)
+	near(share, 1.5 / 3.5, "instant ~42.9%")
+	share = ns.EstimateCoefficientShares({ kind = "cast", seconds = 1.5 }, direct, nil)
+	near(share, 1.5 / 3.5, "1.5s ~42.9%")
+end)
+
+test("periodic coefficient shares from duration", function()
+	local periodic = { low = 50, high = 50, duration = 15 }
+	local _, share = ns.EstimateCoefficientShares({ kind = "instant" }, nil, periodic)
+	near(share, 1, "15s = 100%")
+	periodic = { low = 50, high = 50, duration = 12 }
+	_, share = ns.EstimateCoefficientShares({ kind = "instant" }, nil, periodic)
+	near(share, 12 / 15, "12s = 80%")
+end)
+
+test("hybrid coefficient split uses classic squares", function()
+	local direct = { low = 100, high = 120 }
+	local periodic = { low = 20, high = 20, duration = 15, ticks = 5 }
+	local directShare, periodicShare = ns.EstimateCoefficientShares(
+		{ kind = "cast", seconds = 3.5 },
+		direct,
+		periodic
+	)
+	-- castPart=1, timePart=1 → each share 0.5
+	near(directShare, 0.5, "direct half")
+	near(periodicShare, 0.5, "periodic half")
+end)
+
+test("channel duration feeds the coefficient cast", function()
+	local periodic = { low = 80, high = 80, duration = 3, ticks = 3 }
+	local share = ns.EstimateCoefficientShares({ kind = "channeled" }, { low = 10, high = 10 }, periodic)
+	-- castPart = 3/3.5, timePart = 3/15; hybrid squares
+	local castPart, timePart = 3 / 3.5, 3 / 15
+	local total = castPart + timePart
+	near(share, castPart * castPart / total, "channel hybrid direct")
+end)
+
+test("spell coefficient rows estimate frostbolt and split base from spell power", function()
+	local lines = { "Causes 200 to 230 Frost damage to the target." }
+	local cast = { kind = "cast", seconds = 3 }
+	local stats = { spellDamage = { [5] = 100 }, secret = {} }
+	local result = ns.SpellCoefficients(lines, cast, "Frostbolt", stats)
+	eq(result ~= nil, true, "has result")
+	eq(#result.rows, 1, "one row")
+	near(result.rows[1].share, 3 / 3.5, "share")
+	eq(result.rows[1].estimate, true, "estimate")
+	eq(result.rows[1].text:find("~85.7%", 1, true) ~= nil, true, "percent text")
+	-- bonus = floor(100 * 3/3.5) = 85; base 115 to 145
+	eq(result.rows[1].text:find("115 to 145", 1, true) ~= nil, true, "base range")
+	eq(result.rows[1].text:find("85", 1, true) ~= nil, true, "bonus")
+end)
+
+test("healing power coefficient for a direct heal", function()
+	local lines = { "Heals a friendly target for 500 to 600." }
+	local cast = { kind = "cast", seconds = 2.5 }
+	local stats = { spellHealing = 200, secret = {} }
+	local result = ns.SpellCoefficients(lines, cast, "Heal", stats)
+	eq(result.rows[1].text:find("Healing Power", 1, true) ~= nil, true, "healing label")
+	near(result.rows[1].share, 2.5 / 3.5, "share")
+end)
+
+test("attack power coefficient from description percent", function()
+	local lines = { "Instantly attack for 15% of your attack power." }
+	local stats = { ap = 300, secret = {} }
+	local result = ns.SpellCoefficients(lines, { kind = "instant" }, "Strike", stats)
+	eq(result ~= nil, true, "has result")
+	local found
+	for i = 1, #result.rows do
+		if result.rows[i].kind == "attack" then
+			found = result.rows[i]
+		end
+	end
+	eq(found ~= nil, true, "ap row")
+	near(found.share, 0.15, "15%")
+	eq(found.estimate, false, "exact")
+	eq(found.text:find("+45", 1, true) ~= nil, true, "ap bonus")
+end)
+
+test("dot amount parsing finds duration and ticks", function()
+	local direct, periodic = ns.ReadCoefficientAmounts({
+		"Corrupts the target, causing 90 Shadow damage over 18 sec.",
+	})
+	eq(direct, nil, "no direct")
+	eq(periodic.low, 90, "amount")
+	eq(periodic.duration, 18, "duration")
+	eq(periodic.ticks, nil, "over = whole duration")
+	local _, share = ns.EstimateCoefficientShares({ kind = "instant" }, nil, periodic)
+	near(share, 18 / 15, "no DoT cap")
 end)
 
 if failed > 0 then
