@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.1
+
+Combat secrets no longer turn into wrong numbers on spell tooltips.
+
+### Fixed
+
+- A spell whose cooldown is hidden in combat no longer shows a damage or healing per second rate as if it could be recast at once. The rate line shows the combat-secret mark instead.
+- A description line hidden in combat no longer feeds the efficiency, per-second, and coefficient math. The lines show the combat-secret mark instead of a number built from a partial description.
+- A mana, rage, energy, or focus cost that goes hidden in combat keeps its last readable cost text on ability icons until it can be read again, instead of blanking.
+- Settings registration no longer hides its own failures. A settings error now reaches the error log.
+
+### Changed
+
+- **Minimap button** stays active while the addon is off, so it can be turned back on from its own row.
+- `/rco debug` also names any Cooldown Manager host fields that are missing, so a host update reads as a list instead of silent missing text.
+
 ## 1.5.0
 
 Spell tooltips show estimated spell power coefficients (and explicit attack power shares) from cast time, DoT duration, and live player stats—no spell-ID database.

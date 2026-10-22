@@ -598,6 +598,11 @@ function ns.ThroughputRates(lines, cast, spellName, stats, resourceKey, comboPoi
 	if not cast or cast.kind == "nextswing" or (cast.cooldown and cast.cooldown > 0) then
 		return nil
 	end
+	-- cast.secret: the cooldown could not be read (combat secret), so the
+	-- spell may not be recastable at all. Report the secret, not a rate.
+	if cast.secret then
+		return { secret = true, notes = { ns.SECRET_NOTE } }
+	end
 	local analysis = ns.AnalyzeSpellLines(lines, spellName, stats, comboPoints)
 	if analysis.comboPoints then
 		return nil

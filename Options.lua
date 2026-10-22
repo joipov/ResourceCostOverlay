@@ -57,9 +57,6 @@ local function AddCheckbox(category, varName, key, label, defaultValue, tooltip,
 end
 
 local function AddSlider(category, varName, key, label, defaultValue, minV, maxV, step, formatFn, tooltip)
-	if not (Settings.CreateSliderOptions and Settings.CreateSlider) then
-		return
-	end
 	local setting = Settings.RegisterAddOnSetting(
 		category,
 		"RCO_" .. varName,
@@ -93,22 +90,17 @@ local function AddSlider(category, varName, key, label, defaultValue, minV, maxV
 end
 
 local function AddDropdown(category, varName, key, label, defaultValue, getOptions, tooltip)
-	local createDropdown = Settings.CreateDropdown or Settings.CreateDropDown
-	if not createDropdown then
-		return
-	end
-	local varType = (Settings.VarType and Settings.VarType.String) or "string"
 	local setting = Settings.RegisterAddOnSetting(
 		category,
 		"RCO_" .. varName,
 		key,
 		ns.db,
-		varType,
+		Settings.VarType.String,
 		label,
 		defaultValue
 	)
 	setting:SetValueChangedCallback(OnChanged)
-	local dropdown = createDropdown(category, setting, getOptions, tooltip)
+	local dropdown = Settings.CreateDropdown(category, setting, getOptions, tooltip)
 	return dropdown, setting
 end
 
@@ -160,24 +152,12 @@ local function OpenColorPicker()
 end
 
 local function AddHeader(category, text)
-	if not (SettingsPanel and SettingsPanel.GetLayout and CreateSettingsListSectionHeaderInitializer) then
-		return
-	end
 	local layout = SettingsPanel:GetLayout(category)
-	if not (layout and layout.AddInitializer) then
-		return
-	end
 	layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text))
 end
 
 local function AddColorButton(category, tooltip)
-	if not (SettingsPanel and SettingsPanel.GetLayout and CreateSettingsButtonInitializer) then
-		return
-	end
 	local layout = SettingsPanel:GetLayout(category)
-	if not (layout and layout.AddInitializer) then
-		return
-	end
 	local initializer = CreateSettingsButtonInitializer(
 		"Text color",
 		"Choose color",
@@ -192,294 +172,289 @@ local function AddColorButton(category, tooltip)
 end
 
 function ns.InitOptions()
-	if ns.settingsCategory or not ns.db or not Settings then
+	if ns.settingsCategory or not ns.db then
 		return
 	end
 
-	local ok = pcall(function()
-		local category = Settings.RegisterVerticalLayoutCategory("Spell Resources")
-		ns.settingsCategory = category
-		local defaults = ns.defaults or {}
+	-- No guard and no pcall: Settings is always on this client, and a
+	-- failure here must reach BugSack (house style).
+	local category = Settings.RegisterVerticalLayoutCategory("Spell Resources")
+	ns.settingsCategory = category
+	local defaults = ns.defaults or {}
 
-		local percentTip = "Percent of your maximum. Off shows the cost itself."
+	local percentTip = "Percent of your maximum. Off shows the cost itself."
 
-		local enableCheckbox, enableSetting = AddCheckbox(
-			category,
-			"ENABLED",
-			"enabled",
-			"Enable Spell Resources",
-			defaults.enabled ~= false,
-			"Shows resource costs on ability icons, and rates and coefficients on spell tooltips."
-		)
+	local enableCheckbox, enableSetting = AddCheckbox(
+		category,
+		"ENABLED",
+		"enabled",
+		"Enable Spell Resources",
+		defaults.enabled,
+		"Shows resource costs on ability icons, and rates and coefficients on spell tooltips."
+	)
 
-		local minimapCheckbox = AddCheckbox(
-			category,
-			"SHOW_MINIMAP",
-			"showMinimapButton",
-			"Minimap button",
-			defaults.showMinimapButton ~= false,
-			"Button on the minimap. Opens settings.",
-			function()
-				OnChanged()
-				if ns.UpdateMinimapButton then
-					ns.UpdateMinimapButton()
-				end
-			end
-		)
-
-		AddHeader(category, "Icons")
-
-		local actionBars = AddCheckbox(
-			category,
-			"SHOW_BARS",
-			"showActionBars",
-			"Action bars",
-			defaults.showActionBars == true,
-			"On the default action buttons and custom action buttons."
-		)
-
-		local cooldownSpells = AddCheckbox(
-			category,
-			"SHOW_CDM_SPELLS",
-			"showCdmSpellBars",
-			"Cooldown spells",
-			defaults.showCdmSpellBars ~= false,
-			"On Essential and Utility Cooldown Manager icons."
-		)
-
-		local cooldownBuffs = AddCheckbox(
-			category,
-			"SHOW_CDM_BUFFS",
-			"showCdmBuffBars",
-			"Cooldown buffs",
-			defaults.showCdmBuffBars ~= false,
-			"On Cooldown Manager buff icons and tracked buff bars."
-		)
-
-		AddHeader(category, "Numbers")
-
-		local percentMana = AddCheckbox(
-			category,
-			"PERCENT_MANA",
-			"percentMana",
-			"Mana as % of max",
-			defaults.percentMana ~= false,
-			percentTip
-		)
-
-		local percentRage = AddCheckbox(
-			category,
-			"PERCENT_RAGE",
-			"percentRage",
-			"Rage as % of max",
-			defaults.percentRage == true,
-			percentTip
-		)
-
-		local percentEnergy = AddCheckbox(
-			category,
-			"PERCENT_ENERGY",
-			"percentEnergy",
-			"Energy as % of max",
-			defaults.percentEnergy == true,
-			percentTip
-		)
-
-		local percentFocus = AddCheckbox(
-			category,
-			"PERCENT_FOCUS",
-			"percentFocus",
-			"Focus as % of max",
-			defaults.percentFocus == true,
-			percentTip
-		)
-
-		AddHeader(category, "Tooltips")
-
-		local efficiency = AddCheckbox(
-			category,
-			"SHOW_EFFICIENCY",
-			"showEfficiency",
-			"Resource efficiency",
-			defaults.showEfficiency ~= false,
-			"Damage, healing, or absorb per point of mana, rage, energy, or focus, on the cost line. English spell descriptions."
-		)
-
-		local efficiencyShift = AddCheckbox(
-			category,
-			"EFFICIENCY_SHIFT",
-			"showEfficiencyShiftOnly",
-			"Efficiency only while Shift is held",
-			defaults.showEfficiencyShiftOnly == true,
-			"Hides the efficiency suffix until Shift is held."
-		)
-
-		local throughput = AddCheckbox(
-			category,
-			"SHOW_THROUGHPUT",
-			"showThroughput",
-			"Healing and damage per second",
-			defaults.showThroughput ~= false,
-			"On the cast line, for spells that can be cast again immediately. English spell descriptions."
-		)
-
-		local throughputShift = AddCheckbox(
-			category,
-			"THROUGHPUT_SHIFT",
-			"showThroughputShiftOnly",
-			"Per-second rates only while Shift is held",
-			defaults.showThroughputShiftOnly == true,
-			"Hides the dps/hps suffix until Shift is held."
-		)
-
-		local notes = AddCheckbox(
-			category,
-			"SHOW_NOTES",
-			"showNotes",
-			"Calculation notes",
-			defaults.showNotes ~= false,
-			"Explains forgone rage, DoT DPS mode, absorb drain, and similar calculations."
-		)
-
-		local notesShift = AddCheckbox(
-			category,
-			"NOTES_SHIFT",
-			"showNotesShiftOnly",
-			"Notes only while Shift is held",
-			defaults.showNotesShiftOnly ~= false,
-			"Shows a Shift hint after the suffix until Shift is held."
-		)
-
-		local coefficients = AddCheckbox(
-			category,
-			"SHOW_COEFFICIENTS",
-			"showCoefficients",
-			"Spell power coefficients",
-			defaults.showCoefficients ~= false,
-			"Estimated spell power (and explicit attack power) coefficients under the description. Formula estimates are marked ~. English spell descriptions."
-		)
-
-		local coefficientsShift = AddCheckbox(
-			category,
-			"COEFFICIENTS_SHIFT",
-			"showCoefficientsShiftOnly",
-			"Coefficients only while Shift is held",
-			defaults.showCoefficientsShiftOnly == true,
-			"Hides the coefficient lines until Shift is held."
-		)
-
-		AddHeader(category, "Placement")
-
-		local numberPosition = AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()
-			local container = Settings.CreateControlTextContainer()
-			container:Add("CENTER", "Center")
-			container:Add("TOP", "Top")
-			container:Add("BOTTOM", "Bottom")
-			container:Add("LEFT", "Left")
-			container:Add("RIGHT", "Right")
-			container:Add("TOPLEFT", "Top left")
-			container:Add("TOPRIGHT", "Top right")
-			container:Add("BOTTOMLEFT", "Bottom left")
-			container:Add("BOTTOMRIGHT", "Bottom right")
-			return container:GetData()
-		end, "Where the number sits on the icon.")
-
-		local offsetX = AddSlider(
-			category,
-			"OFFSET_X",
-			"offsetX",
-			"Horizontal offset",
-			defaults.offsetX or 1,
-			-40,
-			40,
-			1,
-			function(value)
-				return tostring(math.floor(value + 0.5)) .. " px"
-			end,
-			"Moves the number left or right."
-		)
-
-		local offsetY = AddSlider(
-			category,
-			"OFFSET_Y",
-			"offsetY",
-			"Vertical offset",
-			defaults.offsetY or 1,
-			-40,
-			40,
-			1,
-			function(value)
-				return tostring(math.floor(value + 0.5)) .. " px"
-			end,
-			"Moves the number up or down."
-		)
-
-		local textSize = AddSlider(
-			category,
-			"FONT_SIZE",
-			"fontSize",
-			"Text size",
-			defaults.fontSize or 9,
-			6,
-			32,
-			1,
-			function(value)
-				return tostring(math.floor(value + 0.5))
-			end,
-			"Size of the number."
-		)
-
-		AddHeader(category, "Color")
-
-		local colorByResource = AddCheckbox(
-			category,
-			"TINT",
-			"tintByResource",
-			"Color by resource",
-			defaults.tintByResource == true,
-			"Mana blue, rage red, focus orange, energy yellow. Off uses Text color."
-		)
-
-		local textColor = AddColorButton(category, "Used when Color by resource is off.")
-
-		local function MasterEnabled()
-			return enableSetting:GetValue()
-		end
-		local function Parent(child)
-			if child then
-				child:SetParentInitializer(enableCheckbox, MasterEnabled)
+	AddCheckbox(
+		category,
+		"SHOW_MINIMAP",
+		"showMinimapButton",
+		"Minimap button",
+		defaults.showMinimapButton,
+		"Button on the minimap. Opens settings.",
+		function()
+			OnChanged()
+			if ns.UpdateMinimapButton then
+				ns.UpdateMinimapButton()
 			end
 		end
-		Parent(minimapCheckbox)
-		Parent(actionBars)
-		Parent(cooldownSpells)
-		Parent(cooldownBuffs)
-		Parent(percentMana)
-		Parent(percentRage)
-		Parent(percentEnergy)
-		Parent(percentFocus)
-		Parent(efficiency)
-		Parent(efficiencyShift)
-		Parent(throughput)
-		Parent(throughputShift)
-		Parent(notes)
-		Parent(notesShift)
-		Parent(coefficients)
-		Parent(coefficientsShift)
-		Parent(numberPosition)
-		Parent(offsetX)
-		Parent(offsetY)
-		Parent(textSize)
-		Parent(colorByResource)
-		Parent(textColor)
+	)
 
-		Settings.RegisterAddOnCategory(category)
-	end)
+	AddHeader(category, "Icons")
 
-	if not ok then
-		ns.settingsCategory = nil
-		ns.Print("Couldn't open settings.")
+	local actionBars = AddCheckbox(
+		category,
+		"SHOW_BARS",
+		"showActionBars",
+		"Action bars",
+		defaults.showActionBars == true,
+		"On the default action buttons and custom action buttons."
+	)
+
+	local cooldownSpells = AddCheckbox(
+		category,
+		"SHOW_CDM_SPELLS",
+		"showCdmSpellBars",
+		"Cooldown spells",
+		defaults.showCdmSpellBars ~= false,
+		"On Essential and Utility Cooldown Manager icons."
+	)
+
+	local cooldownBuffs = AddCheckbox(
+		category,
+		"SHOW_CDM_BUFFS",
+		"showCdmBuffBars",
+		"Cooldown buffs",
+		defaults.showCdmBuffBars ~= false,
+		"On Cooldown Manager buff icons and tracked buff bars."
+	)
+
+	AddHeader(category, "Numbers")
+
+	local percentMana = AddCheckbox(
+		category,
+		"PERCENT_MANA",
+		"percentMana",
+		"Mana as % of max",
+		defaults.percentMana ~= false,
+		percentTip
+	)
+
+	local percentRage = AddCheckbox(
+		category,
+		"PERCENT_RAGE",
+		"percentRage",
+		"Rage as % of max",
+		defaults.percentRage == true,
+		percentTip
+	)
+
+	local percentEnergy = AddCheckbox(
+		category,
+		"PERCENT_ENERGY",
+		"percentEnergy",
+		"Energy as % of max",
+		defaults.percentEnergy == true,
+		percentTip
+	)
+
+	local percentFocus = AddCheckbox(
+		category,
+		"PERCENT_FOCUS",
+		"percentFocus",
+		"Focus as % of max",
+		defaults.percentFocus == true,
+		percentTip
+	)
+
+	AddHeader(category, "Tooltips")
+
+	local efficiency = AddCheckbox(
+		category,
+		"SHOW_EFFICIENCY",
+		"showEfficiency",
+		"Resource efficiency",
+		defaults.showEfficiency ~= false,
+		"Damage, healing, or absorb per point of mana, rage, energy, or focus, on the cost line. English spell descriptions."
+	)
+
+	local efficiencyShift = AddCheckbox(
+		category,
+		"EFFICIENCY_SHIFT",
+		"showEfficiencyShiftOnly",
+		"Efficiency only while Shift is held",
+		defaults.showEfficiencyShiftOnly == true,
+		"Hides the efficiency suffix until Shift is held."
+	)
+
+	local throughput = AddCheckbox(
+		category,
+		"SHOW_THROUGHPUT",
+		"showThroughput",
+		"Healing and damage per second",
+		defaults.showThroughput ~= false,
+		"On the cast line, for spells that can be cast again immediately. English spell descriptions."
+	)
+
+	local throughputShift = AddCheckbox(
+		category,
+		"THROUGHPUT_SHIFT",
+		"showThroughputShiftOnly",
+		"Per-second rates only while Shift is held",
+		defaults.showThroughputShiftOnly == true,
+		"Hides the dps/hps suffix until Shift is held."
+	)
+
+	local notes = AddCheckbox(
+		category,
+		"SHOW_NOTES",
+		"showNotes",
+		"Calculation notes",
+		defaults.showNotes ~= false,
+		"Explains forgone rage, DoT DPS mode, absorb drain, and similar calculations."
+	)
+
+	local notesShift = AddCheckbox(
+		category,
+		"NOTES_SHIFT",
+		"showNotesShiftOnly",
+		"Notes only while Shift is held",
+		defaults.showNotesShiftOnly ~= false,
+		"Shows a Shift hint after the suffix until Shift is held."
+	)
+
+	local coefficients = AddCheckbox(
+		category,
+		"SHOW_COEFFICIENTS",
+		"showCoefficients",
+		"Spell power coefficients",
+		defaults.showCoefficients ~= false,
+		"Estimated spell power (and explicit attack power) coefficients under the description. Formula estimates are marked ~. English spell descriptions."
+	)
+
+	local coefficientsShift = AddCheckbox(
+		category,
+		"COEFFICIENTS_SHIFT",
+		"showCoefficientsShiftOnly",
+		"Coefficients only while Shift is held",
+		defaults.showCoefficientsShiftOnly == true,
+		"Hides the coefficient lines until Shift is held."
+	)
+
+	AddHeader(category, "Placement")
+
+	local numberPosition = AddDropdown(category, "ANCHOR", "anchor", "Number position", defaults.anchor or "BOTTOMLEFT", function()
+		local container = Settings.CreateControlTextContainer()
+		container:Add("CENTER", "Center")
+		container:Add("TOP", "Top")
+		container:Add("BOTTOM", "Bottom")
+		container:Add("LEFT", "Left")
+		container:Add("RIGHT", "Right")
+		container:Add("TOPLEFT", "Top left")
+		container:Add("TOPRIGHT", "Top right")
+		container:Add("BOTTOMLEFT", "Bottom left")
+		container:Add("BOTTOMRIGHT", "Bottom right")
+		return container:GetData()
+	end, "Where the number sits on the icon.")
+
+	local offsetX = AddSlider(
+		category,
+		"OFFSET_X",
+		"offsetX",
+		"Horizontal offset",
+		defaults.offsetX or 1,
+		-40,
+		40,
+		1,
+		function(value)
+			return tostring(math.floor(value + 0.5)) .. " px"
+		end,
+		"Moves the number left or right."
+	)
+
+	local offsetY = AddSlider(
+		category,
+		"OFFSET_Y",
+		"offsetY",
+		"Vertical offset",
+		defaults.offsetY or 1,
+		-40,
+		40,
+		1,
+		function(value)
+			return tostring(math.floor(value + 0.5)) .. " px"
+		end,
+		"Moves the number up or down."
+	)
+
+	local textSize = AddSlider(
+		category,
+		"FONT_SIZE",
+		"fontSize",
+		"Text size",
+		defaults.fontSize or 9,
+		6,
+		32,
+		1,
+		function(value)
+			return tostring(math.floor(value + 0.5))
+		end,
+		"Size of the number."
+	)
+
+	AddHeader(category, "Color")
+
+	local colorByResource = AddCheckbox(
+		category,
+		"TINT",
+		"tintByResource",
+		"Color by resource",
+		defaults.tintByResource == true,
+		"Mana blue, rage red, focus orange, energy yellow. Off uses Text color."
+	)
+
+	local textColor = AddColorButton(category, "Used when Color by resource is off.")
+
+	local function MasterEnabled()
+		return enableSetting:GetValue()
 	end
+	local function Parent(child)
+		if child then
+			child:SetParentInitializer(enableCheckbox, MasterEnabled)
+		end
+	end
+	-- The Minimap button row stays live while the addon is off (house style).
+	Parent(actionBars)
+	Parent(cooldownSpells)
+	Parent(cooldownBuffs)
+	Parent(percentMana)
+	Parent(percentRage)
+	Parent(percentEnergy)
+	Parent(percentFocus)
+	Parent(efficiency)
+	Parent(efficiencyShift)
+	Parent(throughput)
+	Parent(throughputShift)
+	Parent(notes)
+	Parent(notesShift)
+	Parent(coefficients)
+	Parent(coefficientsShift)
+	Parent(numberPosition)
+	Parent(offsetX)
+	Parent(offsetY)
+	Parent(textSize)
+	Parent(colorByResource)
+	Parent(textColor)
+
+	Settings.RegisterAddOnCategory(category)
 end
 
 _G.SLASH_RCO1 = "/rco"
@@ -561,18 +536,12 @@ _G.SlashCmdList.RCO = function(msg)
 	end
 	if msg == "mouse" or msg == "probe" then
 		local starts = {}
-		if GetMouseFoci then
-			local ok, foci = pcall(GetMouseFoci)
-			if ok and type(foci) == "table" then
-				for i = 1, #foci do
-					starts[#starts + 1] = foci[i]
-				end
-			end
-		end
-		if GetMouseFocus then
-			local ok, focus = pcall(GetMouseFocus)
-			if ok and focus then
-				starts[#starts + 1] = focus
+		-- GetMouseFoci is this client's mouse-focus API; the old global
+		-- GetMouseFocus does not exist here.
+		local foci = GetMouseFoci()
+		if type(foci) == "table" then
+			for i = 1, #foci do
+				starts[#starts + 1] = foci[i]
 			end
 		end
 		-- Walk up the frame hierarchy. Action buttons and CDM icons have

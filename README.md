@@ -2,7 +2,7 @@
 
 Small numbers for mana, rage, energy, and focus on spell buttons, and healing or damage rates on spell tooltips. Cooldown Manager bars are on by default. Action bars are off until you turn them on.
 
-Target client: World of Warcraft **Forever** (`## Interface: 16001`).
+Target client: World of Warcraft **Forever**, release client (`_forever_`, `## Interface: 16001`). The old Forever beta (`_classic_beta_`) uses the same TOC and game type.
 
 ## Features
 
@@ -51,8 +51,10 @@ The repository lives outside the game folder; the AddOns entry is a
 directory junction to it:
 
 ```
-mklink /J "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\ResourceCostOverlay" "D:\Repos\Joipov\ResourceCostOverlay"
+mklink /J "C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\ResourceCostOverlay" "D:\Repos\Joipov\ResourceCostOverlay"
 ```
+
+The same link works under `_classic_beta_` if the old beta client is still installed.
 
 Static checks (no game client needed):
 

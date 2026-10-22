@@ -2,18 +2,18 @@
 ## Title: Spell Resources
 ## Notes: Shows mana, rage, energy, and focus costs on icons, and damage, healing, and absorb per point, healing and damage per second, and spell power coefficients on spell tooltips.
 ## Author: Joipov
-## Version: 1.5.0
+## Version: 1.5.1
 ## Category: |cff8b5cf6Joipov|r Tools
 ## IconTexture: Interface\Icons\INV_Misc_Note_01
 ## SavedVariables: ResourceCostOverlayDB
-## OptionalDeps: LibStub, LibDataBroker-1.1, LibDBIcon-1.0
+## OptionalDeps: EllesmereUI, EllesmereUICooldownManager, EllesmereUIActionBars, LibStub, LibDataBroker-1.1, LibDBIcon-1.0
 ## AddonCompartmentFunc: ResourceCostOverlay_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: ResourceCostOverlay_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: ResourceCostOverlay_OnAddonCompartmentLeave
-## X-License: MIT
-## X-Website: https://github.com/joipov/ResourceCostOverlay
 ## AllowLoadGameType: forever
 ## ExcludeLoadGameType: standard, classic
+## X-License: MIT
+## X-Website: https://github.com/joipov/ResourceCostOverlay
 
 Database.lua
 SpellText.lua

@@ -199,6 +199,12 @@ local function FontLine(tooltipName, side, index)
 	end
 	local text = ReadableString(fontString:GetText())
 	if not text then
+		-- A third return marks a line that exists but is a combat secret, so
+		-- callers can tell it apart from a missing or hidden line.
+		local raw = fontString:GetText()
+		if type(raw) == "string" and SecretBlocked(raw) then
+			return nil, fontString, true
+		end
 		return nil
 	end
 	return text, fontString
@@ -212,8 +218,12 @@ local function ReadSpellTooltip(tooltip)
 	end
 	local costLine, resource, cost, costText, cast, cooldown
 	local lines = {}
+	local secretText, cooldownSecret = false, false
 	for i = 2, count do
-		local text, fontString = FontLine(name, "TextLeft", i)
+		local text, fontString, lineSecret = FontLine(name, "TextLeft", i)
+		if lineSecret then
+			secretText = true
+		end
 		if text then
 			local lower = ns.NormalizeSpellText(text)
 			if lower:find("^next rank") then
@@ -230,7 +240,10 @@ local function ReadSpellTooltip(tooltip)
 				lineCooldown = MatchCooldown(lower)
 			end
 			if i <= 8 then
-				local rightText = FontLine(name, "TextRight", i)
+				local rightText, _, rightSecret = FontLine(name, "TextRight", i)
+				if rightSecret then
+					cooldownSecret = true
+				end
 				if rightText then
 					cooldown = cooldown or MatchCooldown(ns.NormalizeSpellText(rightText))
 				end
@@ -248,11 +261,16 @@ local function ReadSpellTooltip(tooltip)
 	end
 	if cast then
 		cast.cooldown = cooldown
+		-- A secret line where the cooldown would sit means the cooldown is
+		-- unknown, not absent: a per-second rate must not assume a recast.
+		if not cooldown and cooldownSecret then
+			cast.secret = true
+		end
 	end
 	if not (costLine or cast) then
 		return nil
 	end
-	return costLine, resource, cost, lines, cast, costText
+	return costLine, resource, cost, lines, cast, costText, secretText
 end
 
 local function CooldownSeconds(spellID)
@@ -272,6 +290,11 @@ local function CooldownSeconds(spellID)
 		if ok then
 			ms = value
 		end
+	end
+	-- A secret cooldown is unknown, not absent. The second return says so,
+	-- so the caller can mark the cast instead of assuming it is recastable.
+	if SecretBlocked(ms) then
+		return nil, true
 	end
 	ms = ReadableNumber(ms)
 	if not ms or ms <= 0 then
@@ -569,7 +592,7 @@ local function Process(tooltip, spellID)
 	end
 
 	spellID = ReadableNumber(spellID) or SpellIDFromTooltip(tooltip)
-	local costLine, resource, cost, lines, cast, costText = ReadSpellTooltip(tooltip)
+	local costLine, resource, cost, lines, cast, costText, secretText = ReadSpellTooltip(tooltip)
 	if not lines then
 		return
 	end
@@ -600,9 +623,11 @@ local function Process(tooltip, spellID)
 		end
 	end
 	if cast and not cast.cooldown then
-		local cooldown = CooldownSeconds(spellID)
+		local cooldown, cooldownSecret = CooldownSeconds(spellID)
 		if cooldown then
 			cast.cooldown = cooldown
+		elseif cooldownSecret then
+			cast.secret = true
 		end
 	end
 
@@ -615,7 +640,12 @@ local function Process(tooltip, spellID)
 	local castKey = ""
 	if cast then
 		castKey = cast.kind .. ":" .. tostring(cast.seconds) .. ":" .. tostring(cast.cooldown or 0)
+			.. ":" .. (cast.secret and "s" or "")
 	end
+	-- Any secret line that fed the math marks the whole computation: the
+	-- numbers below are built from the lines that could be read, and a
+	-- truncated description would give a confident wrong answer.
+	local anySecret = titleSecret or secretText
 	local key = table.concat({
 		showEfficiency and "1" or "0",
 		showThroughput and "1" or "0",
@@ -626,28 +656,28 @@ local function Process(tooltip, spellID)
 		StatsKey(stats),
 		tostring(comboPoints or 0),
 		castKey,
-		titleSecret and "s" or "",
+		anySecret and "s" or "",
 		table.concat(lines, "|"),
 	}, "\1")
 
 	local suffixes = Cached(key, function()
 		local ratio, rate, ratioNotes, rateNotes, coefficients
 		if showEfficiency and costLine and resource then
-			if titleSecret then
+			if anySecret then
 				ratio, ratioNotes = ns.SECRET_SUFFIX, { ns.SECRET_NOTE }
 			elseif cost and cost > 0 then
 				ratio, ratioNotes = ns.FormatResourceSuffix(lines, cost, resource.key, title, stats, comboPoints)
 			end
 		end
 		if showThroughput and cast then
-			if titleSecret and cast.kind ~= "nextswing" then
+			if anySecret and cast.kind ~= "nextswing" then
 				rate, rateNotes = ns.SECRET_SUFFIX, { ns.SECRET_NOTE }
 			else
 				rate, rateNotes = ns.FormatThroughputSuffix(lines, cast, resource and resource.key, title, stats, comboPoints)
 			end
 		end
 		if wantCoefficients then
-			if titleSecret then
+			if anySecret then
 				coefficients = {
 					rows = { { text = "Spell Power " .. ns.SECRET_SUFFIX } },
 					notes = { ns.SECRET_NOTE },

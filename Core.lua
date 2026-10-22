@@ -429,6 +429,9 @@ local function ReadCostEntry(entry)
 		return nil
 	end
 
+	-- A secret amount cannot be read or shown. Say so apart from "no cost",
+	-- so a spell that had a cost does not lose its text in combat.
+	local secretAmount = SecretBlocked(entry.cost) or SecretBlocked(entry.minCost)
 	local cost = ReadableNumber(entry.cost)
 	local minCost = ReadableNumber(entry.minCost)
 	-- Important: cost may be 0 while minCost is the real flat cost (0 is truthy in Lua).
@@ -439,7 +442,7 @@ local function ReadCostEntry(entry)
 		amount = minCost
 	end
 	if not amount then
-		return nil
+		return nil, nil, nil, secretAmount or nil
 	end
 
 	local costPercent = ReadableNumber(entry.costPercent) or 0
@@ -460,9 +463,12 @@ local function BestCostEntry(costs)
 	end
 	-- Prefer an entry whose required aura is currently met; otherwise still
 	-- use a flat cost so stance abilities (Shield Block, Disarm) show.
-	local fallbackAmount, fallbackType, fallbackPercent
+	local fallbackAmount, fallbackType, fallbackPercent, anySecret
 	for i = 1, #costs do
-		local amount, powerType, isPercent = ReadCostEntry(costs[i])
+		local amount, powerType, isPercent, secretAmount = ReadCostEntry(costs[i])
+		if secretAmount then
+			anySecret = true
+		end
 		if amount then
 			local entry = costs[i]
 			local requiredAuraID = ReadableNumber(entry.requiredAuraID)
@@ -480,15 +486,32 @@ local function BestCostEntry(costs)
 	if fallbackAmount then
 		return fallbackAmount, fallbackType, fallbackPercent
 	end
-	return nil
+	return nil, nil, nil, anySecret or nil
 end
+
+-- Spells whose cost read was blocked by a combat secret, by spell id. A
+-- secret amount can never be rendered, so the last readable text stands.
+local secretCostSpells = {}
+local lastDisplay = {}
 
 local function DirectSpellCost(spellID)
 	local getCosts = (C_Spell and C_Spell.GetSpellPowerCost) or GetSpellPowerCost
 	if not getCosts then
 		return nil
 	end
-	return BestCostEntry(getCosts(spellID))
+	-- The entry fields can be secret in combat; read the list as one call,
+	-- as the tooltip reads below already do.
+	local ok, costs = pcall(getCosts, spellID)
+	if not ok then
+		return nil
+	end
+	local amount, powerType, isPercent, secretAmount = BestCostEntry(costs)
+	if amount then
+		secretCostSpells[spellID] = nil
+	elseif secretAmount then
+		secretCostSpells[spellID] = true
+	end
+	return amount, powerType, isPercent
 end
 
 local function TooltipForSpell(spellID)
@@ -740,10 +763,23 @@ function ns.ComputeDisplay(spellID, exact)
 
 	local cost, powerType = ns.GetSpellResourceCost(spellID, exact)
 	if not cost or not powerType then
+		-- A cost that went secret in combat is unreadable, not gone: keep
+		-- the last readable text for the same spell until it can be read
+		-- again. A spell that never had a cost has nothing cached.
+		if spellID and secretCostSpells[spellID] then
+			local cached = lastDisplay[spellID .. ":" .. tostring(exact)]
+			if cached then
+				return cached[1], cached[2]
+			end
+		end
 		return nil
 	end
 
-	return DisplayCost(cost, powerType)
+	local text, displayPower = DisplayCost(cost, powerType)
+	if text and spellID then
+		lastDisplay[spellID .. ":" .. tostring(exact)] = { text, displayPower }
+	end
+	return text, displayPower
 end
 
 local function ApplyTextStyle(fs, powerType)

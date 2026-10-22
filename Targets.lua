@@ -205,6 +205,9 @@ local function CollectEllesmereIcons(out, seen, wantBuff)
 	if not mod then
 		return
 	end
+	-- The reanchor hook is idempotent. Retrying it here covers a host that
+	-- appears after the initial rescan ticker has stopped.
+	HookEllesmereReanchor()
 
 	local countBefore = #out
 	local iconsByKey = mod.cdmBarIcons
@@ -465,6 +468,18 @@ function ns.DebugTargets()
 		mod and "yes" or "no",
 		_G.EABButton1 and "yes" or "no"
 	))
+	if mod then
+		-- Name the host fields this build expects, so a host reshuffle reads
+		-- as a list of what went missing instead of silent missing text.
+		local missing = {}
+		if type(mod.CollectAndReanchor) ~= "function" then missing[#missing + 1] = "CollectAndReanchor" end
+		if type(mod.cdmBarIcons) ~= "table" then missing[#missing + 1] = "cdmBarIcons" end
+		if type(mod.cdmBarFrames) ~= "table" then missing[#missing + 1] = "cdmBarFrames" end
+		if type(mod.IsBarBuffFamily) ~= "function" then missing[#missing + 1] = "IsBarBuffFamily" end
+		if type(mod.GetTrackedBuffBars) ~= "function" then missing[#missing + 1] = "GetTrackedBuffBars" end
+		if type(mod.GetTBBFrame) ~= "function" then missing[#missing + 1] = "GetTBBFrame" end
+		ns.Print("ellesmere fields missing: " .. (#missing > 0 and table.concat(missing, ", ") or "none"))
+	end
 	for i = 1, #samples do
 		ns.Print("  " .. samples[i])
 	end
