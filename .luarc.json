@@ -13,8 +13,7 @@
     "utf8": "disable"
   },
   "workspace.library": [
-    ".annotations",
-    "C:/Users/rubin/.cursor/extensions/ketho.wow-api/Annotations/Core"
+    ".annotations"
   ],
   "workspace.ignoreDir": [
     ".release",
