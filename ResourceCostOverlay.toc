@@ -12,7 +12,7 @@
 ## AddonCompartmentFuncOnLeave: ResourceCostOverlay_OnAddonCompartmentLeave
 ## AllowLoadGameType: forever
 ## ExcludeLoadGameType: standard, classic
-## X-License: MIT
+## X-License: GPL-3.0-or-later
 ## X-Website: https://github.com/joipov/ResourceCostOverlay
 
 Database.lua
