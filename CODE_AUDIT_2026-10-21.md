@@ -1,15 +1,27 @@
 # Spell Resources audit
 
-Target: World of Warcraft Forever, `## Interface: 16001` (client 1.60.1.70425), Lua 5.1.
+Target: World of Warcraft Forever, `## Interface: 16001` (client 1.60.1.70862), Lua 5.1.
 References, in house order: the Forever API for this build, Warcraft Wiki
 Patch 1.60.1/API changes and Patch 12.0.0 secret values, Ketho's vscode-wow-api
 annotations, BlizzardInterfaceCode. Compared 2026-10-21 against
 ResourceEfficiencyTooltips 0.2.1 (2026-10-18), EllesmereUI 9.6.1 (2026-10-19),
 and PrettyTooltip 1.3.5 (2026-10-21). That comparison is behaviour only:
 ResourceEfficiencyTooltips and ForeverBiS ship no licence, so no code,
-strings, or data tables were taken from them.
+strings, or data tables were taken from them. Re-checked against client
+1.60.1.70862 and EllesmereUI 9.8.2 on 2026-11-08.
 
 This note is for development. It is not shipped in the addon zip.
+
+## What changed in 1.5.2
+
+- Re-checked every private Ellesmere field this addon reads against 9.8.2:
+  `ERB_PrimaryBar`, `_sb`, `RaiseBorderAbove`, `EllesmereUIUnitFrames_Player.Power`,
+  `EllesmereUI._ModuleNS`, `CollectAndReanchor`, `cdmBarIcons`, `cdmBarFrames`,
+  `IsBarBuffFamily`, `GetTrackedBuffBars`, `GetTBBFrame`, `_isPlaceholderFrame`,
+  `useBlizzardBuffBars`, `hideBlizzard`, and `EABButton<slot>` (1–180). All
+  keep their shapes. `C_Spell.GetSpellBaseCooldown` and the
+  `GetSpellBaseCooldown` global are still absent, and the existing guard
+  still covers them. No code change.
 
 ## What changed in 1.5.1
 

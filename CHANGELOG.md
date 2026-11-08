@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2
+
+Re-checked against the current Forever client and EllesmereUI; no code change was needed.
+
+### Changed
+
+- Verified against Forever client 1.60.1.70862 and EllesmereUI 9.8.2. Every private Cooldown Manager and action-bar field this addon reads still exists.
+
 ## 1.5.1
 
 Combat secrets no longer turn into wrong numbers on spell tooltips.
