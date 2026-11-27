@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.4
+
+Settings can be copied as a string and pasted on another character or computer.
+
+### Added
+
+- **Export profile** and **Import profile** in settings. Import reloads the UI.
+
+## 1.5.3
+
+Settings no longer indent every feature under the minimap button.
+
+### Changed
+
+- Feature rows grey out when the addon is off. They stay full-width. Shift-only rows sit under their own feature. The minimap button is last and stays clickable.
+
 ## 1.5.2
 
 Re-checked against the current Forever client and EllesmereUI; no code change was needed.

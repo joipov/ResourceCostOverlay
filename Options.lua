@@ -184,7 +184,7 @@ function ns.InitOptions()
 
 	local percentTip = "Percent of your maximum. Off shows the cost itself."
 
-	local enableCheckbox, enableSetting = AddCheckbox(
+	local _, enableSetting = AddCheckbox(
 		category,
 		"ENABLED",
 		"enabled",
@@ -193,20 +193,32 @@ function ns.InitOptions()
 		"Shows resource costs on ability icons, and rates and coefficients on spell tooltips."
 	)
 
-	AddCheckbox(
-		category,
-		"SHOW_MINIMAP",
-		"showMinimapButton",
-		"Minimap button",
-		defaults.showMinimapButton,
-		"Button on the minimap. Opens settings.",
-		function()
-			OnChanged()
-			if ns.UpdateMinimapButton then
-				ns.UpdateMinimapButton()
-			end
+	local function GateOn(initializer)
+		if not initializer then
+			return
 		end
-	)
+		if initializer.AddModifyPredicate then
+			initializer:AddModifyPredicate(function()
+				return enableSetting:GetValue()
+			end)
+		end
+		if initializer.AddEvaluateStateCVar then
+			initializer:AddEvaluateStateCVar("RCO_ENABLED")
+		end
+	end
+
+	local function Nest(child, parentInit, parentSetting)
+		if not child or not parentInit then
+			return
+		end
+		if child.SetParentInitializer then
+			child:SetParentInitializer(parentInit, function()
+				return enableSetting:GetValue() and parentSetting:GetValue()
+			end)
+			return
+		end
+		GateOn(child)
+	end
 
 	AddHeader(category, "Icons")
 
@@ -277,7 +289,7 @@ function ns.InitOptions()
 
 	AddHeader(category, "Tooltips")
 
-	local efficiency = AddCheckbox(
+	local efficiency, efficiencySetting = AddCheckbox(
 		category,
 		"SHOW_EFFICIENCY",
 		"showEfficiency",
@@ -295,7 +307,7 @@ function ns.InitOptions()
 		"Hides the efficiency suffix until Shift is held."
 	)
 
-	local throughput = AddCheckbox(
+	local throughput, throughputSetting = AddCheckbox(
 		category,
 		"SHOW_THROUGHPUT",
 		"showThroughput",
@@ -313,7 +325,7 @@ function ns.InitOptions()
 		"Hides the dps/hps suffix until Shift is held."
 	)
 
-	local notes = AddCheckbox(
+	local notes, notesSetting = AddCheckbox(
 		category,
 		"SHOW_NOTES",
 		"showNotes",
@@ -331,7 +343,7 @@ function ns.InitOptions()
 		"Shows a Shift hint after the suffix until Shift is held."
 	)
 
-	local coefficients = AddCheckbox(
+	local coefficients, coefficientsSetting = AddCheckbox(
 		category,
 		"SHOW_COEFFICIENTS",
 		"showCoefficients",
@@ -423,36 +435,44 @@ function ns.InitOptions()
 
 	local textColor = AddColorButton(category, "Used when Color by resource is off.")
 
-	local function MasterEnabled()
-		return enableSetting:GetValue()
-	end
-	local function Parent(child)
-		if child then
-			child:SetParentInitializer(enableCheckbox, MasterEnabled)
+	GateOn(actionBars)
+	GateOn(cooldownSpells)
+	GateOn(cooldownBuffs)
+	GateOn(percentMana)
+	GateOn(percentRage)
+	GateOn(percentEnergy)
+	GateOn(percentFocus)
+	GateOn(efficiency)
+	GateOn(throughput)
+	GateOn(notes)
+	GateOn(coefficients)
+	GateOn(numberPosition)
+	GateOn(offsetX)
+	GateOn(offsetY)
+	GateOn(textSize)
+	GateOn(colorByResource)
+	GateOn(textColor)
+	Nest(efficiencyShift, efficiency, efficiencySetting)
+	Nest(throughputShift, throughput, throughputSetting)
+	Nest(notesShift, notes, notesSetting)
+	Nest(coefficientsShift, coefficients, coefficientsSetting)
+
+	AddCheckbox(
+		category,
+		"SHOW_MINIMAP",
+		"showMinimapButton",
+		"Minimap button",
+		defaults.showMinimapButton,
+		"Button on the minimap. Opens settings. Stays available when the addon is off.",
+		function()
+			OnChanged()
+			if ns.UpdateMinimapButton then
+				ns.UpdateMinimapButton()
+			end
 		end
-	end
-	-- The Minimap button row stays live while the addon is off (house style).
-	Parent(actionBars)
-	Parent(cooldownSpells)
-	Parent(cooldownBuffs)
-	Parent(percentMana)
-	Parent(percentRage)
-	Parent(percentEnergy)
-	Parent(percentFocus)
-	Parent(efficiency)
-	Parent(efficiencyShift)
-	Parent(throughput)
-	Parent(throughputShift)
-	Parent(notes)
-	Parent(notesShift)
-	Parent(coefficients)
-	Parent(coefficientsShift)
-	Parent(numberPosition)
-	Parent(offsetX)
-	Parent(offsetY)
-	Parent(textSize)
-	Parent(colorByResource)
-	Parent(textColor)
+	)
+
+	ns.AddProfileShareButtons(category)
 
 	Settings.RegisterAddOnCategory(category)
 end

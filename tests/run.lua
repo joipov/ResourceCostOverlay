@@ -15,6 +15,7 @@ local function load(file)
 end
 
 load("Database.lua")
+load("Profile.lua")
 load("SpellText.lua")
 load("Efficiency.lua")
 load("Coefficients.lua")
@@ -380,6 +381,28 @@ test("dot amount parsing finds duration and ticks", function()
 	eq(periodic.ticks, nil, "over = whole duration")
 	local _, share = ns.EstimateCoefficientShares({ kind = "instant" }, nil, periodic)
 	near(share, 18 / 15, "no DoT cap")
+end)
+
+test("profile export roundtrips settings", function()
+	ns.db = ns.LoadDB({
+		version = ns.DB_VERSION,
+		offsetX = 8,
+		percentRage = true,
+		minimapIcon = { minimapPos = 33 },
+	})
+	local str = ns.ExportProfile()
+	eq(str:sub(1, 24), "!JPV:ResourceCostOverlay", "prefix")
+	ns.db = ns.LoadDB(nil)
+	eq(ns.db.offsetX, 1, "reset")
+	eq(ns.ImportProfile(str), true, "import")
+	eq(ns.db.offsetX, 8, "offsetX")
+	eq(ns.db.percentRage, true, "percentRage")
+	eq(ns.db.minimapIcon.minimapPos, 33, "minimapPos")
+end)
+
+test("profile import rejects another addon", function()
+	ns.db = ns.LoadDB(nil)
+	eq(ns.ImportProfile("!JPV:GearStats!{offsetX=8}"), nil, "other")
 end)
 
 if failed > 0 then
